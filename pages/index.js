@@ -384,6 +384,11 @@ export default function Home() {
       setActiveStageIndex(4);
       setStage('done');
 
+      // Auto-scroll to results when complete
+      setTimeout(() => {
+        document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 600);
+
       const successfulLangs = Object.keys(newResults).length;
       if (successfulLangs > 0) {
         const segmentCount = blocks.length;
@@ -571,17 +576,42 @@ export default function Home() {
 
             {/* Pipeline */}
             <div style={s.pipelineWrap}>
-              {PIPELINE_STAGES.map((stg, i) => (
-                <div key={stg.id} style={s.pipelineItem}>
-                  <div style={{ ...s.pipelineNode, ...(activeStageIndex === i ? s.pipelineNodeActive : {}), ...(activeStageIndex > i ? s.pipelineNodeDone : {}) }}>
-                    <span>{stg.icon}</span>
+              {PIPELINE_STAGES.map((stg, i) => {
+                const isActive = activeStageIndex === i;
+                const isDone = activeStageIndex > i;
+                const isReady = i === PIPELINE_STAGES.length - 1 && stage === 'done';
+                const handleClick = isReady ? () => {
+                  document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } : undefined;
+                return (
+                  <div key={stg.id} style={s.pipelineItem}>
+                    <div
+                      onClick={handleClick}
+                      className={isActive ? 'pipeline-node-active' : isDone ? 'pipeline-node-done' : ''}
+                      style={{
+                        ...s.pipelineNode,
+                        ...(isActive ? s.pipelineNodeActive : {}),
+                        ...(isDone ? s.pipelineNodeDone : {}),
+                        ...(isReady ? s.pipelineNodeReady : {}),
+                      }}>
+                      <span>{stg.icon}</span>
+                    </div>
+                    <span
+                      onClick={handleClick}
+                      style={{
+                        ...s.pipelineLabel,
+                        ...(activeStageIndex >= i ? s.pipelineLabelActive : {}),
+                        ...(isReady ? s.pipelineLabelReady : {}),
+                      }}>
+                      {isReady ? `${stg.label} ↓` : stg.label}
+                    </span>
+                    {i < PIPELINE_STAGES.length - 1 && <div style={{ ...s.pipelineConnector, ...(activeStageIndex > i ? s.pipelineConnectorActive : {}) }} />}
                   </div>
-                  <span style={{ ...s.pipelineLabel, ...(activeStageIndex >= i ? s.pipelineLabelActive : {}) }}>{stg.label}</span>
-                  {i < PIPELINE_STAGES.length - 1 && <div style={{ ...s.pipelineConnector, ...(activeStageIndex > i ? s.pipelineConnectorActive : {}) }} />}
-                </div>
-              ))}
+                );
+              })}
               <div style={s.pipelineItemYT}>
-                <div style={{ ...s.pipelineNode, ...(stage === 'done' && videoId && ytConfigured ? s.pipelineNodeActive : {}) }}>
+                <div className={stage === 'done' && videoId && ytConfigured ? 'pipeline-node-active' : ''}
+                  style={{ ...s.pipelineNode, ...(stage === 'done' && videoId && ytConfigured ? s.pipelineNodeActive : {}) }}>
                   <span>▶</span>
                 </div>
                 <span style={{ ...s.pipelineLabel, ...(stage === 'done' && videoId && ytConfigured ? s.pipelineLabelActive : {}) }}>YouTube</span>
@@ -787,7 +817,7 @@ export default function Home() {
 
             {/* Results */}
             {stage === 'done' && Object.keys(results).length > 0 && (
-              <div style={s.resultsSection}>
+              <div id="results-section" style={s.resultsSection}>
                 <div style={s.resultsHeader}>
                   <div style={s.resultsTitle}><span className="brand-diamond" />&nbsp;&nbsp;Translation Complete</div>
                   <div style={s.resultsActions}>
@@ -1110,15 +1140,17 @@ const s = {
   heroSub: { fontSize: 18, color: 'rgba(249, 247, 234, 0.7)', maxWidth: 700, lineHeight: 1.7, fontWeight: 400 },
 
   // Pipeline (larger nodes)
-  pipelineWrap: { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: 64, overflowX: 'auto', padding: '12px 0' },
-  pipelineItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, position: 'relative', flex: '0 0 auto' },
-  pipelineItemYT: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, flex: '0 0 auto', marginLeft: 32, paddingLeft: 32, borderLeft: `1px solid ${BORDER_GOLD}` },
-  pipelineNode: { width: 56, height: 56, borderRadius: '50%', border: `1.5px solid ${BORDER_STRONG}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, color: TEXT_SOFT, transition: 'all 0.4s', background: '#fff' },
-  pipelineNodeActive: { border: `1.5px solid ${GOLD}`, color: DARK, background: GOLD, boxShadow: `0 0 0 8px rgba(205, 137, 28, 0.15), 0 0 24px rgba(205, 137, 28, 0.3)` },
+  pipelineWrap: { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: 64, overflowX: 'auto', padding: '20px 0', gap: 4 },
+  pipelineItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, position: 'relative', flex: '0 0 auto', minWidth: 110 },
+  pipelineItemYT: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, flex: '0 0 auto', minWidth: 110, marginLeft: 28, paddingLeft: 28, borderLeft: `1px solid ${BORDER_GOLD}` },
+  pipelineNode: { width: 56, height: 56, borderRadius: '50%', border: `1.5px solid ${BORDER_STRONG}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, color: TEXT_SOFT, transition: 'all 0.4s', background: '#fff', position: 'relative', zIndex: 1 },
+  pipelineNodeActive: { border: `1.5px solid ${GOLD}`, color: DARK, background: GOLD, zIndex: 2 },
   pipelineNodeDone: { border: `1.5px solid ${GOLD}`, color: GOLD, background: CREAM },
-  pipelineLabel: { fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: TEXT_SOFT, textAlign: 'center', maxWidth: 80, lineHeight: 1.3, transition: 'color 0.4s', fontWeight: 700 },
+  pipelineNodeReady: { cursor: 'pointer' },
+  pipelineLabel: { fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: TEXT_SOFT, textAlign: 'center', lineHeight: 1.3, transition: 'color 0.4s', fontWeight: 700, whiteSpace: 'nowrap' },
   pipelineLabelActive: { color: DARK },
-  pipelineConnector: { position: 'absolute', top: 28, left: 'calc(50% + 28px)', width: 'calc(100% - 8px)', height: 1.5, background: BORDER, transition: 'background 0.4s' },
+  pipelineLabelReady: { cursor: 'pointer', color: GOLD, textDecoration: 'underline', textDecorationColor: 'rgba(205,137,28,0.4)', textUnderlineOffset: 4 },
+  pipelineConnector: { position: 'absolute', top: 28, left: '50%', width: '100%', height: 1.5, background: BORDER, transition: 'background 0.4s', zIndex: 0 },
   pipelineConnectorActive: { background: GOLD },
 
   // Cards (much larger)

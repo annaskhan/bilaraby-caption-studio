@@ -113,6 +113,42 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
   50% { opacity: 0.6; box-shadow: 0 0 0 5px rgba(214, 78, 62, 0); }
 }
 
+/* Pipeline: active node breathes with a soft expanding gold ring */
+@keyframes node-breathe {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(205, 137, 28, 0.45),
+                0 0 18px rgba(205, 137, 28, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(205, 137, 28, 0),
+                0 0 32px rgba(205, 137, 28, 0.5);
+  }
+}
+
+@keyframes node-icon-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+.pipeline-node-active {
+  animation: node-breathe 2.2s ease-in-out infinite;
+}
+
+.pipeline-node-active span {
+  display: inline-block;
+  animation: node-icon-pulse 2.2s ease-in-out infinite;
+}
+
+/* Done nodes: subtle quiet shimmer */
+@keyframes node-shimmer {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(205, 137, 28, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(205, 137, 28, 0.08); }
+}
+
+.pipeline-node-done {
+  animation: node-shimmer 3s ease-in-out infinite;
+}
+
 /* Inputs */
 input:focus, textarea:focus {
   outline: none;
