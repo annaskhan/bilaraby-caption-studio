@@ -1,0 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap');
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background: #06060a;
+  color: #e8e0d0;
+  font-family: 'DM Sans', sans-serif;
+  overflow-x: hidden;
+}
+
+.lang-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(212,175,80,0.35) !important;
+}
+
+.translate-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(212,175,80,0.3) !important;
+}
+
+.result-card:hover {
+  border-color: rgba(212,175,80,0.18) !important;
+  transform: translateY(-1px);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-anim {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.spinner {
+  display: inline-block;
+  animation: spin 1.5s linear infinite;
+}
+
+.pulse {
+  display: inline-block;
+  animation: pulse-anim 1s ease-in-out infinite;
+  color: #D4AF50;
+}
+
+input:focus {
+  border-color: rgba(212,175,80,0.4) !important;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(212,175,80,0.08);
+}
+
+a:hover { opacity: 0.8; }
