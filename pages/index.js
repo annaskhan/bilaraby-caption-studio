@@ -401,8 +401,8 @@ export default function Home() {
         <header style={s.header}>
           <div style={s.headerInner}>
             <div style={s.logo}>
-              <span style={s.logoAr}>بالعربي</span>
-              <span style={s.logoDivider}>✦</span>
+              <span style={s.logoAr} className="arabic">بالعربي</span>
+              <span style={s.logoSep}>·</span>
               <span style={s.logoEn}>Caption Studio</span>
             </div>
             <div style={s.headerRight}>
@@ -418,8 +418,14 @@ export default function Home() {
         {activeTab === 'guide' ? <GuideTab /> : (
           <main style={s.main}>
             <div style={s.hero}>
-              <h1 style={s.heroTitle}>Translate Once.<br /><span style={s.heroAccent}>Reach Everyone.</span></h1>
-              <p style={s.heroSub}>Upload an Arabic SRT or paste a YouTube link. Claude translates to 12 languages with your custom brand glossary. Push directly to YouTube as drafts.</p>
+              <div style={s.heroDiamond}><span className="brand-diamond-lg" /></div>
+              <div style={s.heroLabel}>AN INITIATIVE OF QATAR FOUNDATION  ·  POWERED BY CLAUDE</div>
+              <h1 style={s.heroTitle}>
+                <span className="arabic" style={s.heroArabic}>بالعربي</span>
+                <span style={s.heroDivider}>·</span>
+                Caption Studio
+              </h1>
+              <p style={s.heroSub}>Translate once. Reach everyone. Upload an Arabic SRT or paste a YouTube link — Claude translates to 12 languages with your custom brand glossary, then pushes directly to YouTube as drafts.</p>
             </div>
 
             <div style={s.pipelineWrap}>
@@ -808,181 +814,225 @@ function GuideTab() {
   );
 }
 
-const s = {
-  root: { minHeight: '100vh', background: '#06060a', color: '#e8e0d0' },
-  header: { borderBottom: '1px solid rgba(212,175,80,0.12)', padding: '0 32px', position: 'sticky', top: 0, background: 'rgba(6,6,10,0.96)', backdropFilter: 'blur(12px)', zIndex: 100 },
-  headerInner: { maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 },
-  logo: { display: 'flex', alignItems: 'center', gap: 12 },
-  logoAr: { fontSize: 22, fontWeight: 700, color: '#D4AF50', fontFamily: 'serif' },
-  logoDivider: { color: 'rgba(212,175,80,0.3)', fontSize: 12 },
-  logoEn: { fontSize: 12, fontWeight: 500, letterSpacing: 4, textTransform: 'uppercase', color: 'rgba(232,224,208,0.4)' },
-  headerRight: { display: 'flex', alignItems: 'center', gap: 20 },
-  tabNav: { display: 'flex', gap: 4, background: 'rgba(232,224,208,0.05)', borderRadius: 6, padding: 4 },
-  tabBtn: { background: 'transparent', border: 'none', color: 'rgba(232,224,208,0.4)', fontSize: 12, fontWeight: 600, letterSpacing: 1, padding: '6px 14px', borderRadius: 4, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s' },
-  tabBtnActive: { background: 'rgba(212,175,80,0.15)', color: '#D4AF50' },
-  badge: { fontSize: 9, letterSpacing: 3, fontWeight: 700, color: '#D4AF50', border: '1px solid rgba(212,175,80,0.25)', padding: '4px 10px', borderRadius: 2 },
-  main: { maxWidth: 1100, margin: '0 auto', padding: '48px 32px 80px' },
-  hero: { textAlign: 'center', marginBottom: 48 },
-  heroTitle: { fontSize: 'clamp(32px, 4.5vw, 56px)', fontWeight: 800, lineHeight: 1.1, margin: '0 0 18px', letterSpacing: -1 },
-  heroAccent: { color: '#D4AF50' },
-  heroSub: { fontSize: 15, color: 'rgba(232,224,208,0.5)', maxWidth: 580, margin: '0 auto', lineHeight: 1.8 },
-  pipelineWrap: { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: 48, overflowX: 'auto', padding: '16px 0' },
-  pipelineItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, position: 'relative', flex: '0 0 auto' },
-  pipelineItemYT: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, flex: '0 0 auto', marginLeft: 24, paddingLeft: 24, borderLeft: '1px solid rgba(212,175,80,0.2)' },
-  pipelineNode: { width: 44, height: 44, borderRadius: '50%', border: '1px solid rgba(232,224,208,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: 'rgba(232,224,208,0.25)', transition: 'all 0.4s' },
-  pipelineNodeActive: { border: '1px solid #D4AF50', color: '#D4AF50', background: 'rgba(212,175,80,0.1)', boxShadow: '0 0 20px rgba(212,175,80,0.25)' },
-  pipelineNodeDone: { border: '1px solid rgba(212,175,80,0.4)', color: 'rgba(212,175,80,0.6)' },
-  pipelineLabel: { fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(232,224,208,0.2)', textAlign: 'center', maxWidth: 76, lineHeight: 1.3, transition: 'color 0.4s' },
-  pipelineLabelActive: { color: 'rgba(212,175,80,0.7)' },
-  pipelineConnector: { position: 'absolute', top: 22, left: 'calc(50% + 22px)', width: 'calc(100% - 8px)', height: 1, background: 'rgba(232,224,208,0.07)', transition: 'background 0.4s' },
-  pipelineConnectorActive: { background: 'rgba(212,175,80,0.35)' },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 },
-  card: { background: 'rgba(232,224,208,0.025)', border: '1px solid rgba(232,224,208,0.07)', borderRadius: 10, padding: 24 },
-  cardLabelRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  cardLabel: { fontSize: 9, letterSpacing: 3, fontWeight: 700, color: '#D4AF50', textTransform: 'uppercase' },
-  modeToggle: { display: 'flex', gap: 2, background: 'rgba(232,224,208,0.04)', borderRadius: 5, padding: 3 },
-  modeBtn: { background: 'transparent', border: 'none', color: 'rgba(232,224,208,0.4)', fontSize: 10, fontWeight: 600, letterSpacing: 0.5, padding: '5px 10px', borderRadius: 3, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s' },
-  modeBtnActive: { background: 'rgba(212,175,80,0.15)', color: '#D4AF50' },
-  dropzone: { border: '1px dashed rgba(232,224,208,0.15)', borderRadius: 8, padding: '36px 24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.3s', minHeight: 155, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  dropzoneActive: { border: '1px dashed #D4AF50', background: 'rgba(212,175,80,0.04)' },
-  dropzoneFilled: { border: '1px solid rgba(212,175,80,0.3)', background: 'rgba(212,175,80,0.03)' },
-  dropContent: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 },
-  dropIconLg: { fontSize: 26, color: 'rgba(232,224,208,0.15)' },
-  dropText: { fontSize: 13, color: 'rgba(232,224,208,0.5)' },
-  dropSub: { fontSize: 11, color: 'rgba(232,224,208,0.25)' },
-  fileInfo: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
-  fileIcon: { fontSize: 22, color: '#D4AF50' },
-  fileName: { fontSize: 13, fontWeight: 700, color: '#e8e0d0' },
-  fileSize: { fontSize: 11, color: 'rgba(232,224,208,0.4)' },
-  fileChange: { fontSize: 10, color: 'rgba(212,175,80,0.4)', letterSpacing: 1 },
-  ytFetchBox: { display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 0' },
-  ytUrlInput: { background: 'rgba(232,224,208,0.04)', border: '1px solid rgba(232,224,208,0.1)', borderRadius: 6, padding: '12px 14px', color: '#e8e0d0', fontSize: 13, fontFamily: 'inherit' },
-  ytFetchBtn: { background: 'linear-gradient(135deg, #ff4444 0%, #cc0000 100%)', border: 'none', borderRadius: 6, padding: '12px 20px', fontSize: 12, fontWeight: 700, letterSpacing: 1, color: '#fff', cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.3s', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  ytFetchSuccess: { fontSize: 11, color: '#50D4A0', padding: '8px 12px', background: 'rgba(80,212,160,0.06)', borderRadius: 5 },
-  ytFetchNote: { fontSize: 10, color: 'rgba(232,224,208,0.35)', lineHeight: 1.6 },
-  error: { marginTop: 10, fontSize: 12, color: '#ff6b6b', textAlign: 'center' },
-  langGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 7 },
-  langBtn: { background: 'rgba(232,224,208,0.03)', border: '1px solid rgba(232,224,208,0.08)', borderRadius: 6, padding: '10px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, transition: 'all 0.2s', position: 'relative' },
-  langBtnActive: { background: 'rgba(212,175,80,0.1)', border: '1px solid rgba(212,175,80,0.35)' },
-  langFlag: { fontSize: 18 },
-  langName: { fontSize: 9, color: 'rgba(232,224,208,0.55)', letterSpacing: 0.5, textAlign: 'center' },
-  langCheck: { position: 'absolute', top: 4, right: 4, fontSize: 8, color: '#D4AF50', fontWeight: 700 },
-  langCount: { marginTop: 12, fontSize: 10, color: 'rgba(212,175,80,0.5)', letterSpacing: 1, textAlign: 'right' },
+const DARK = '#1B180F';
+const DARK_2 = '#2A2620';
+const CREAM = '#F9F7EA';
+const CREAM_2 = '#F2EFE0';
+const CREAM_3 = '#E8E4D0';
+const GOLD = '#CD891C';
+const GOLD_SOFT = '#D6A03F';
+const TEAL = '#0B6A62';
+const PURPLE = '#734663';
+const BLUE = '#104F84';
+const RED = '#D64E3E';
+const TEXT = '#1B180F';
+const TEXT_MUTED = 'rgba(27, 24, 15, 0.65)';
+const TEXT_SOFT = 'rgba(27, 24, 15, 0.45)';
+const BORDER = 'rgba(27, 24, 15, 0.1)';
+const BORDER_STRONG = 'rgba(27, 24, 15, 0.18)';
+const BORDER_GOLD = 'rgba(205, 137, 28, 0.4)';
 
-  glossaryCard: { background: 'rgba(232,224,208,0.025)', border: '1px solid rgba(232,224,208,0.07)', borderRadius: 10, marginBottom: 16, overflow: 'hidden' },
-  glossaryHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', cursor: 'pointer', userSelect: 'none' },
-  glossaryTitle: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 10, fontWeight: 700, letterSpacing: 3, color: '#D4AF50', textTransform: 'uppercase' },
+const s = {
+  root: { minHeight: '100vh', background: CREAM, color: TEXT },
+
+  // Header — dark panel with gold frame, evoking the toolkit's branded panels
+  header: { background: DARK, padding: '0 32px', position: 'sticky', top: 0, zIndex: 100, borderBottom: `1px solid ${GOLD}` },
+  headerInner: { maxWidth: 1180, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 72 },
+  logo: { display: 'flex', alignItems: 'center', gap: 14 },
+  logoAr: { fontSize: 30, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: -1 },
+  logoSep: { color: GOLD, fontSize: 16 },
+  logoEn: { fontSize: 12, fontWeight: 600, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(249, 247, 234, 0.7)' },
+  headerRight: { display: 'flex', alignItems: 'center', gap: 20 },
+  tabNav: { display: 'flex', gap: 2, background: 'rgba(249, 247, 234, 0.08)', borderRadius: 4, padding: 3 },
+  tabBtn: { background: 'transparent', border: 'none', color: 'rgba(249, 247, 234, 0.5)', fontSize: 11, fontWeight: 600, letterSpacing: 1.5, padding: '7px 14px', borderRadius: 3, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s', fontFamily: 'inherit' },
+  tabBtnActive: { background: GOLD, color: DARK },
+  badge: { fontSize: 9, letterSpacing: 2.5, fontWeight: 700, color: GOLD, border: `1px solid ${BORDER_GOLD}`, padding: '4px 10px', borderRadius: 2, textTransform: 'uppercase' },
+
+  main: { maxWidth: 1180, margin: '0 auto', padding: '0 32px 80px' },
+
+  // Hero — dark panel with the L-frame gold line and double-diamond, mirroring the toolkit pages
+  hero: { background: DARK, color: CREAM, margin: '0 -32px 48px', padding: '64px 64px 56px', position: 'relative' },
+  heroDiamond: { position: 'absolute', top: 28, right: 60, opacity: 0.95 },
+  heroLabel: { fontSize: 9, letterSpacing: 4, color: GOLD, marginBottom: 20, textTransform: 'uppercase', fontWeight: 600 },
+  heroTitle: { fontSize: 'clamp(32px, 4.5vw, 56px)', fontWeight: 800, lineHeight: 1, margin: '0 0 22px', letterSpacing: -1.5, color: CREAM, display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' },
+  heroArabic: { fontSize: 'clamp(38px, 5vw, 64px)', fontWeight: 700, color: CREAM },
+  heroDivider: { color: GOLD, fontWeight: 300 },
+  heroSub: { fontSize: 15, color: 'rgba(249, 247, 234, 0.65)', maxWidth: 600, lineHeight: 1.8 },
+
+  // Pipeline
+  pipelineWrap: { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: 48, overflowX: 'auto', padding: '8px 0' },
+  pipelineItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, position: 'relative', flex: '0 0 auto' },
+  pipelineItemYT: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, flex: '0 0 auto', marginLeft: 28, paddingLeft: 28, borderLeft: `1px solid ${BORDER_GOLD}` },
+  pipelineNode: { width: 46, height: 46, borderRadius: '50%', border: `1.5px solid ${BORDER_STRONG}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: TEXT_SOFT, transition: 'all 0.4s', background: CREAM_2 },
+  pipelineNodeActive: { border: `1.5px solid ${GOLD}`, color: DARK, background: GOLD, boxShadow: `0 0 0 6px rgba(205, 137, 28, 0.15)` },
+  pipelineNodeDone: { border: `1.5px solid ${GOLD}`, color: GOLD, background: CREAM },
+  pipelineLabel: { fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: TEXT_SOFT, textAlign: 'center', maxWidth: 80, lineHeight: 1.3, transition: 'color 0.4s', fontWeight: 600 },
+  pipelineLabelActive: { color: DARK },
+  pipelineConnector: { position: 'absolute', top: 23, left: 'calc(50% + 23px)', width: 'calc(100% - 8px)', height: 1.5, background: BORDER, transition: 'background 0.4s' },
+  pipelineConnectorActive: { background: GOLD },
+
+  // Cards (cream panels in the layout)
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 },
+  card: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 4, padding: 24, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  cardLabelRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  cardLabel: { fontSize: 10, letterSpacing: 3, fontWeight: 800, color: GOLD, textTransform: 'uppercase' },
+  modeToggle: { display: 'flex', gap: 2, background: CREAM_2, borderRadius: 4, padding: 3 },
+  modeBtn: { background: 'transparent', border: 'none', color: TEXT_MUTED, fontSize: 10, fontWeight: 700, letterSpacing: 1, padding: '5px 11px', borderRadius: 3, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s', fontFamily: 'inherit' },
+  modeBtnActive: { background: DARK, color: CREAM },
+
+  // Dropzone
+  dropzone: { border: `1.5px dashed ${BORDER_STRONG}`, borderRadius: 4, padding: '36px 24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.3s', minHeight: 165, display: 'flex', alignItems: 'center', justifyContent: 'center', background: CREAM_2 },
+  dropzoneActive: { border: `1.5px dashed ${GOLD}`, background: 'rgba(205, 137, 28, 0.05)' },
+  dropzoneFilled: { border: `1.5px solid ${GOLD}`, background: 'rgba(205, 137, 28, 0.04)' },
+  dropContent: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 },
+  dropIconLg: { fontSize: 28, color: TEXT_SOFT },
+  dropText: { fontSize: 14, color: TEXT_MUTED, fontWeight: 500 },
+  dropSub: { fontSize: 11, color: TEXT_SOFT, letterSpacing: 0.5 },
+  fileInfo: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
+  fileIcon: { fontSize: 22, color: GOLD },
+  fileName: { fontSize: 13, fontWeight: 700, color: TEXT },
+  fileSize: { fontSize: 11, color: TEXT_MUTED },
+  fileChange: { fontSize: 10, color: GOLD, letterSpacing: 1, fontWeight: 600 },
+
+  // YouTube fetch box
+  ytFetchBox: { display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' },
+  ytUrlInput: { background: CREAM_2, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '12px 14px', color: TEXT, fontSize: 13, fontFamily: 'inherit', transition: 'all 0.2s' },
+  ytFetchBtn: { background: RED, border: 'none', borderRadius: 4, padding: '12px 20px', fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: CREAM, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.3s', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' },
+  ytFetchSuccess: { fontSize: 12, color: TEAL, padding: '8px 12px', background: 'rgba(11, 106, 98, 0.08)', borderRadius: 3, fontWeight: 500 },
+  ytFetchNote: { fontSize: 11, color: TEXT_SOFT, lineHeight: 1.6 },
+  error: { marginTop: 10, fontSize: 12, color: RED, textAlign: 'center', fontWeight: 500 },
+
+  // Languages
+  langGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 },
+  langBtn: { background: CREAM_2, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '11px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, transition: 'all 0.2s', position: 'relative', fontFamily: 'inherit' },
+  langBtnActive: { background: 'rgba(205, 137, 28, 0.1)', border: `1.5px solid ${GOLD}` },
+  langFlag: { fontSize: 19 },
+  langName: { fontSize: 10, color: TEXT_MUTED, letterSpacing: 0.3, textAlign: 'center', fontWeight: 500 },
+  langCheck: { position: 'absolute', top: 4, right: 5, fontSize: 9, color: GOLD, fontWeight: 800 },
+  langCount: { marginTop: 13, fontSize: 11, color: GOLD, letterSpacing: 1, textAlign: 'right', fontWeight: 600 },
+
+  // Glossary
+  glossaryCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 4, marginBottom: 16, overflow: 'hidden', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  glossaryHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', cursor: 'pointer', userSelect: 'none' },
+  glossaryTitle: { display: 'flex', alignItems: 'center', gap: 12, fontSize: 10, fontWeight: 800, letterSpacing: 3, color: GOLD, textTransform: 'uppercase' },
   glossaryIcon: { fontSize: 14 },
-  glossaryCount: { fontSize: 9, color: 'rgba(232,224,208,0.4)', fontWeight: 400, letterSpacing: 1 },
-  glossaryBody: { padding: '0 24px 24px', borderTop: '1px solid rgba(232,224,208,0.05)' },
-  glossaryNote: { background: 'rgba(212,175,80,0.04)', border: '1px solid rgba(212,175,80,0.12)', borderRadius: 6, padding: 14, fontSize: 12, color: 'rgba(232,224,208,0.65)', lineHeight: 1.7, margin: '16px 0' },
+  glossaryCount: { fontSize: 10, color: TEXT_SOFT, fontWeight: 500, letterSpacing: 1, textTransform: 'none' },
+  glossaryBody: { padding: '0 24px 24px', borderTop: `1px solid ${BORDER}` },
+  glossaryNote: { background: CREAM_2, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${GOLD}`, borderRadius: 2, padding: 14, fontSize: 12, color: TEXT_MUTED, lineHeight: 1.7, margin: '16px 0' },
   glossaryActions: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' },
-  glossaryActionBtn: { background: 'rgba(232,224,208,0.04)', border: '1px solid rgba(232,224,208,0.1)', borderRadius: 5, padding: '7px 12px', fontSize: 11, color: 'rgba(232,224,208,0.7)', cursor: 'pointer', fontWeight: 600, letterSpacing: 0.5, fontFamily: 'inherit' },
-  glossaryTable: { background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 6 },
-  glossaryRowHeader: { display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.8fr 1.6fr 0.3fr', gap: 6, padding: '8px 6px', fontSize: 9, color: 'rgba(212,175,80,0.6)', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700 },
+  glossaryActionBtn: { background: CREAM_2, border: `1px solid ${BORDER}`, borderRadius: 3, padding: '7px 12px', fontSize: 11, color: TEXT_MUTED, cursor: 'pointer', fontWeight: 600, letterSpacing: 0.5, fontFamily: 'inherit', transition: 'all 0.2s' },
+  glossaryTable: { background: CREAM_2, borderRadius: 4, padding: 6, border: `1px solid ${BORDER}` },
+  glossaryRowHeader: { display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.8fr 1.6fr 0.3fr', gap: 6, padding: '8px 6px', fontSize: 9, color: GOLD, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 800 },
   glossaryRow: { display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.8fr 1.6fr 0.3fr', gap: 6, padding: 4, alignItems: 'center' },
   glossaryColTerm: {}, glossaryColTrans: {}, glossaryColKeep: {}, glossaryColNotes: {}, glossaryColDel: {},
-  glossaryInput: { background: 'rgba(232,224,208,0.03)', border: '1px solid rgba(232,224,208,0.08)', borderRadius: 4, padding: '7px 10px', color: '#e8e0d0', fontSize: 12, fontFamily: 'inherit', width: '100%' },
-  glossaryCheckLabel: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'rgba(232,224,208,0.6)', cursor: 'pointer' },
-  glossaryCheck: { accentColor: '#D4AF50', cursor: 'pointer' },
-  glossaryDelBtn: { background: 'transparent', border: 'none', color: 'rgba(255,107,107,0.5)', fontSize: 18, cursor: 'pointer', padding: 4 },
-  glossarySaved: { marginTop: 14, fontSize: 11, color: 'rgba(80,212,160,0.7)', letterSpacing: 0.5 },
+  glossaryInput: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 3, padding: '7px 10px', color: TEXT, fontSize: 12, fontFamily: 'inherit', width: '100%' },
+  glossaryCheckLabel: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: TEXT_MUTED, cursor: 'pointer', fontWeight: 500 },
+  glossaryCheck: { accentColor: GOLD, cursor: 'pointer' },
+  glossaryDelBtn: { background: 'transparent', border: 'none', color: 'rgba(214, 78, 62, 0.5)', fontSize: 18, cursor: 'pointer', padding: 4 },
+  glossarySaved: { marginTop: 14, fontSize: 11, color: TEAL, letterSpacing: 0.5, fontWeight: 500 },
 
-  ytConfigCard: { background: 'rgba(232,224,208,0.025)', border: '1px solid rgba(232,224,208,0.07)', borderRadius: 10, marginBottom: 16, overflow: 'hidden' },
-  ytConfigHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', cursor: 'pointer', userSelect: 'none' },
-  ytConfigTitle: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 10, fontWeight: 700, letterSpacing: 3, color: '#D4AF50', textTransform: 'uppercase' },
-  ytIcon: { fontSize: 14, color: '#ff4444' },
-  ytOptional: { fontSize: 9, color: 'rgba(232,224,208,0.3)', fontWeight: 400 },
-  ytChevron: { fontSize: 10, color: 'rgba(232,224,208,0.3)' },
-  ytConfigBody: { padding: '0 24px 24px', borderTop: '1px solid rgba(232,224,208,0.05)' },
-  ytInfoBox: { background: 'rgba(212,175,80,0.04)', border: '1px solid rgba(212,175,80,0.12)', borderRadius: 8, padding: 18, margin: '16px 0' },
-  ytInfoTitle: { fontSize: 11, fontWeight: 700, color: '#D4AF50', letterSpacing: 1, marginBottom: 14, textTransform: 'uppercase' },
+  // YouTube config
+  ytConfigCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 4, marginBottom: 16, overflow: 'hidden', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  ytConfigHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', cursor: 'pointer', userSelect: 'none' },
+  ytConfigTitle: { display: 'flex', alignItems: 'center', gap: 12, fontSize: 10, fontWeight: 800, letterSpacing: 3, color: GOLD, textTransform: 'uppercase' },
+  ytIcon: { fontSize: 14, color: RED },
+  ytOptional: { fontSize: 10, color: TEXT_SOFT, fontWeight: 500, letterSpacing: 1, textTransform: 'none' },
+  ytChevron: { fontSize: 10, color: TEXT_SOFT },
+  ytConfigBody: { padding: '0 24px 24px', borderTop: `1px solid ${BORDER}` },
+  ytInfoBox: { background: CREAM_2, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${GOLD}`, borderRadius: 2, padding: 18, margin: '16px 0' },
+  ytInfoTitle: { fontSize: 11, fontWeight: 800, color: GOLD, letterSpacing: 1, marginBottom: 14, textTransform: 'uppercase' },
   ytSteps: { display: 'flex', flexDirection: 'column', gap: 10 },
   ytStep: { display: 'flex', alignItems: 'flex-start', gap: 10 },
-  ytStepNum: { minWidth: 18, height: 18, borderRadius: '50%', background: 'rgba(212,175,80,0.2)', color: '#D4AF50', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 },
-  ytStepText: { fontSize: 12, color: 'rgba(232,224,208,0.7)', lineHeight: 1.6 },
-  ytInfoNote: { marginTop: 12, fontSize: 11, color: 'rgba(232,224,208,0.4)', borderTop: '1px solid rgba(212,175,80,0.1)', paddingTop: 12 },
-  link: { color: '#D4AF50', textDecoration: 'none' },
-  code: { background: 'rgba(212,175,80,0.1)', padding: '1px 5px', borderRadius: 3, fontSize: 10, fontFamily: 'monospace', color: '#D4AF50' },
+  ytStepNum: { minWidth: 18, height: 18, borderRadius: '50%', background: GOLD, color: CREAM, fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 },
+  ytStepText: { fontSize: 12, color: TEXT_MUTED, lineHeight: 1.6 },
+  ytInfoNote: { marginTop: 12, fontSize: 11, color: TEXT_SOFT, borderTop: `1px solid ${BORDER}`, paddingTop: 12 },
+  link: { color: GOLD, fontWeight: 600 },
+  code: { background: 'rgba(205, 137, 28, 0.12)', padding: '1px 5px', borderRadius: 2, fontSize: 10, fontFamily: 'monospace', color: DARK },
   ytFields: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12 },
   ytField: { display: 'flex', flexDirection: 'column', gap: 6 },
-  ytLabel: { fontSize: 10, letterSpacing: 2, color: 'rgba(232,224,208,0.4)', textTransform: 'uppercase' },
-  ytInput: { background: 'rgba(232,224,208,0.04)', border: '1px solid rgba(232,224,208,0.1)', borderRadius: 6, padding: '10px 14px', color: '#e8e0d0', fontSize: 13, fontFamily: 'inherit' },
-  ytReady: { marginTop: 12, fontSize: 11, color: '#50D4A0' },
+  ytLabel: { fontSize: 10, letterSpacing: 1.5, color: TEXT_MUTED, textTransform: 'uppercase', fontWeight: 700 },
+  ytInput: { background: CREAM_2, border: `1px solid ${BORDER}`, borderRadius: 3, padding: '10px 14px', color: TEXT, fontSize: 13, fontFamily: 'inherit' },
+  ytReady: { marginTop: 12, fontSize: 11, color: TEAL, fontWeight: 600 },
 
-  actionRow: { display: 'flex', justifyContent: 'center', marginBottom: 20 },
-  translateBtn: { background: 'linear-gradient(135deg, #D4AF50 0%, #b8923a 100%)', border: 'none', borderRadius: 6, padding: '15px 44px', fontSize: 13, fontWeight: 700, letterSpacing: 2, color: '#06060a', cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.3s', boxShadow: '0 4px 24px rgba(212,175,80,0.2)' },
-  translateBtnDisabled: { opacity: 0.25, cursor: 'not-allowed' },
-  translateBtnRunning: { background: 'linear-gradient(135deg, rgba(212,175,80,0.3) 0%, rgba(184,146,58,0.3) 100%)', color: '#D4AF50' },
+  // Translate button
+  actionRow: { display: 'flex', justifyContent: 'center', marginBottom: 22 },
+  translateBtn: { background: DARK, border: `1.5px solid ${GOLD}`, borderRadius: 4, padding: '16px 48px', fontSize: 12, fontWeight: 800, letterSpacing: 2.5, color: CREAM, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.3s', boxShadow: `0 4px 20px rgba(27, 24, 15, 0.15)`, fontFamily: 'inherit' },
+  translateBtnDisabled: { opacity: 0.3, cursor: 'not-allowed' },
+  translateBtnRunning: { background: CREAM_2, color: DARK, border: `1.5px solid ${GOLD}` },
   btnInner: { display: 'flex', alignItems: 'center' },
   btnDisabled: { opacity: 0.4, cursor: 'not-allowed' },
-  progressCard: { background: 'rgba(212,175,80,0.03)', border: '1px solid rgba(212,175,80,0.12)', borderRadius: 8, padding: 22, marginBottom: 20 },
-  progressTitle: { fontSize: 10, letterSpacing: 3, color: '#D4AF50', marginBottom: 14, textTransform: 'uppercase' },
-  progressGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 7 },
-  progressItem: { display: 'flex', alignItems: 'center', gap: 7, padding: '7px 11px', borderRadius: 5, background: 'rgba(232,224,208,0.02)', border: '1px solid rgba(232,224,208,0.05)', fontSize: 12 },
-  progressItemActive: { border: '1px solid rgba(212,175,80,0.3)', background: 'rgba(212,175,80,0.05)' },
-  progressItemDone: { border: '1px solid rgba(80,212,160,0.2)', background: 'rgba(80,212,160,0.03)' },
-  progressLang: { flex: 1, fontSize: 11, color: 'rgba(232,224,208,0.6)' },
-  progressStatus: { fontSize: 11, color: '#D4AF50' },
+
+  // Progress
+  progressCard: { background: CREAM_2, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${GOLD}`, borderRadius: 2, padding: 22, marginBottom: 22 },
+  progressTitle: { fontSize: 10, letterSpacing: 3, color: GOLD, marginBottom: 14, textTransform: 'uppercase', fontWeight: 800 },
+  progressGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 7 },
+  progressItem: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', borderRadius: 3, background: '#fff', border: `1px solid ${BORDER}`, fontSize: 12 },
+  progressItemActive: { border: `1.5px solid ${GOLD}` },
+  progressItemDone: { border: `1px solid ${TEAL}`, background: 'rgba(11, 106, 98, 0.04)' },
+  progressLang: { flex: 1, fontSize: 11, color: TEXT, fontWeight: 500 },
+  progressStatus: { fontSize: 12, color: GOLD, fontWeight: 800 },
+
+  // Results
   resultsSection: { marginTop: 8 },
-  resultsHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  resultsTitle: { fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10 },
-  resultsTitleAccent: { color: '#D4AF50' },
+  resultsHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 12 },
+  resultsTitle: { fontSize: 18, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 12, color: TEXT },
+  resultsTitleAccent: { color: GOLD },
   resultsActions: { display: 'flex', gap: 10 },
-  uploadAllBtn: { padding: '10px 20px', fontSize: 11, background: 'linear-gradient(135deg, #4466cc 0%, #2244aa 100%)' },
-  downloadAllBtn: { padding: '10px 20px', fontSize: 11 },
-  resultsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 },
-  resultCard: { background: 'rgba(232,224,208,0.025)', border: '1px solid rgba(232,224,208,0.07)', borderRadius: 8, padding: 18, transition: 'all 0.2s' },
-  resultLang: { display: 'flex', alignItems: 'center', gap: 11, marginBottom: 14 },
-  resultFlag: { fontSize: 22 },
-  resultLangName: { fontSize: 13, fontWeight: 700 },
-  resultMeta: { fontSize: 10, color: 'rgba(212,175,80,0.5)', letterSpacing: 1, marginTop: 2 },
-  uploadedBadge: { color: '#50D4A0', letterSpacing: 0.5 },
-  resultPreview: { background: 'rgba(0,0,0,0.25)', borderRadius: 5, padding: 11, marginBottom: 12, minHeight: 60 },
+  uploadAllBtn: { padding: '11px 20px', fontSize: 11, background: BLUE, borderColor: BLUE, color: CREAM },
+  downloadAllBtn: { padding: '11px 20px', fontSize: 11 },
+  resultsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 14 },
+  resultCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 4, padding: 18, transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  resultLang: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 },
+  resultFlag: { fontSize: 24 },
+  resultLangName: { fontSize: 13, fontWeight: 700, color: TEXT },
+  resultMeta: { fontSize: 10, color: GOLD, letterSpacing: 1, marginTop: 2, fontWeight: 600, textTransform: 'uppercase' },
+  uploadedBadge: { color: TEAL, letterSpacing: 0.5 },
+  resultPreview: { background: CREAM_2, border: `1px solid ${BORDER}`, borderRadius: 3, padding: 11, marginBottom: 12, minHeight: 64 },
   previewBlock: { marginBottom: 7 },
-  previewTime: { fontSize: 9, color: 'rgba(212,175,80,0.4)', letterSpacing: 0.5, marginBottom: 2, fontFamily: 'monospace' },
-  previewText: { fontSize: 11, color: 'rgba(232,224,208,0.65)', lineHeight: 1.5 },
-  uploadError: { fontSize: 11, color: '#ff6b6b', marginBottom: 8 },
+  previewTime: { fontSize: 9, color: GOLD, letterSpacing: 0.5, marginBottom: 2, fontFamily: 'monospace', fontWeight: 700 },
+  previewText: { fontSize: 11, color: TEXT, lineHeight: 1.5 },
+  uploadError: { fontSize: 11, color: RED, marginBottom: 8, fontWeight: 500 },
   resultBtns: { display: 'flex', gap: 8 },
   resultActionBtn: { flex: 1, justifyContent: 'center', padding: '9px 0', fontSize: 10, letterSpacing: 1.5, display: 'flex', alignItems: 'center' },
-  ytUploadBtn: { background: 'rgba(68,102,204,0.15)', border: '1px solid rgba(68,102,204,0.3)', color: '#6B8FD4' },
-  ytSuccessBar: { marginTop: 20, padding: '14px 20px', background: 'rgba(80,212,160,0.06)', border: '1px solid rgba(80,212,160,0.2)', borderRadius: 8, fontSize: 13, color: '#50D4A0', lineHeight: 1.6 },
+  ytUploadBtn: { background: 'rgba(16, 79, 132, 0.08)', border: `1px solid ${BLUE}`, color: BLUE },
+  ytSuccessBar: { marginTop: 20, padding: '14px 20px', background: 'rgba(11, 106, 98, 0.08)', border: `1px solid ${TEAL}`, borderRadius: 3, fontSize: 13, color: TEAL, lineHeight: 1.6, fontWeight: 500 },
 
-  dashSection: { marginTop: 56, padding: '32px 0 0', borderTop: '1px solid rgba(232,224,208,0.05)' },
+  // Activity Dashboard
+  dashSection: { marginTop: 56, padding: '32px 0 0', borderTop: `1px solid ${BORDER}` },
   dashHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 },
   dashTitle: { display: 'flex', alignItems: 'center', gap: 14 },
-  dashLive: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 9, fontWeight: 700, letterSpacing: 2, color: '#ff4444', background: 'rgba(255,68,68,0.08)', border: '1px solid rgba(255,68,68,0.25)', padding: '4px 10px', borderRadius: 3, textTransform: 'uppercase' },
-  dashTitleText: { fontSize: 15, fontWeight: 700, letterSpacing: 0.5, color: '#e8e0d0' },
-  dashSubtitle: { display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: 'rgba(232,224,208,0.4)' },
-  dashSubAccent: { color: '#D4AF50', fontWeight: 600 },
-  dashReset: { background: 'transparent', border: '1px solid rgba(232,224,208,0.1)', color: 'rgba(232,224,208,0.4)', fontSize: 10, fontWeight: 600, letterSpacing: 1, padding: '5px 10px', borderRadius: 4, cursor: 'pointer', textTransform: 'uppercase', fontFamily: 'inherit', transition: 'all 0.2s' },
+  dashLive: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 9, fontWeight: 800, letterSpacing: 2.5, color: RED, background: 'rgba(214, 78, 62, 0.08)', border: `1px solid rgba(214, 78, 62, 0.3)`, padding: '4px 10px', borderRadius: 2, textTransform: 'uppercase' },
+  dashTitleText: { fontSize: 18, fontWeight: 800, letterSpacing: -0.3, color: TEXT },
+  dashSubtitle: { display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: TEXT_MUTED },
+  dashSubAccent: { color: GOLD, fontWeight: 700 },
+  dashReset: { background: 'transparent', border: `1px solid ${BORDER_STRONG}`, color: TEXT_MUTED, fontSize: 10, fontWeight: 700, letterSpacing: 1, padding: '5px 10px', borderRadius: 3, cursor: 'pointer', textTransform: 'uppercase', fontFamily: 'inherit', transition: 'all 0.2s' },
   dashGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 },
-  dashCard: { background: 'rgba(232,224,208,0.025)', border: '1px solid rgba(232,224,208,0.07)', borderRadius: 8, padding: 20, transition: 'all 0.3s', position: 'relative', overflow: 'hidden' },
-  dashCardLabel: { fontSize: 9, letterSpacing: 2, color: 'rgba(212,175,80,0.7)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 12 },
-  dashCardNum: { fontSize: 36, fontWeight: 800, color: '#D4AF50', letterSpacing: -1, lineHeight: 1, marginBottom: 6, fontVariantNumeric: 'tabular-nums' },
-  dashCardSub: { fontSize: 10, color: 'rgba(232,224,208,0.35)', letterSpacing: 0.5 },
-  dashFooter: { marginTop: 18, fontSize: 10, color: 'rgba(232,224,208,0.3)', textAlign: 'center', letterSpacing: 1 },
+  dashCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 4, padding: 22, transition: 'all 0.3s', position: 'relative', overflow: 'hidden', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  dashCardLabel: { fontSize: 9, letterSpacing: 2.5, color: GOLD, textTransform: 'uppercase', fontWeight: 800, marginBottom: 14 },
+  dashCardNum: { fontSize: 42, fontWeight: 800, color: DARK, letterSpacing: -1.5, lineHeight: 1, marginBottom: 6, fontVariantNumeric: 'tabular-nums', fontFamily: 'Chivo, sans-serif' },
+  dashCardSub: { fontSize: 11, color: TEXT_SOFT, letterSpacing: 0.3 },
+  dashFooter: { marginTop: 20, fontSize: 10, color: TEXT_SOFT, textAlign: 'center', letterSpacing: 1, fontStyle: 'italic' },
 };
 
 const g = {
-  root: { maxWidth: 900, margin: '0 auto', padding: '48px 32px 80px' },
-  hero: { textAlign: 'center', marginBottom: 48, paddingBottom: 40, borderBottom: '1px solid rgba(212,175,80,0.1)' },
-  heroLabel: { fontSize: 9, letterSpacing: 4, color: '#D4AF50', marginBottom: 14, textTransform: 'uppercase' },
-  heroTitle: { fontSize: 38, fontWeight: 800, margin: '0 0 14px', letterSpacing: -1 },
-  heroSub: { fontSize: 15, color: 'rgba(232,224,208,0.5)', lineHeight: 1.8 },
+  root: { maxWidth: 920, margin: '0 auto', padding: '48px 32px 80px' },
+  hero: { background: DARK, color: CREAM, margin: '0 -32px 48px', padding: '56px 64px 48px', position: 'relative' },
+  heroLabel: { fontSize: 9, letterSpacing: 4, color: GOLD, marginBottom: 14, textTransform: 'uppercase', fontWeight: 600 },
+  heroTitle: { fontSize: 38, fontWeight: 800, margin: '0 0 14px', letterSpacing: -1, color: CREAM },
+  heroSub: { fontSize: 15, color: 'rgba(249, 247, 234, 0.65)', lineHeight: 1.8, maxWidth: 600 },
   phases: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 48 },
-  phaseCard: { background: 'rgba(232,224,208,0.025)', border: '1px solid rgba(232,224,208,0.07)', borderRadius: 10, overflow: 'hidden', display: 'flex' },
+  phaseCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 4, overflow: 'hidden', display: 'flex', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   phaseStripe: { width: 4, flexShrink: 0 },
-  phaseContent: { padding: 22, flex: 1 },
-  phaseTag: { fontSize: 9, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 },
-  phaseTitle: { fontSize: 14, fontWeight: 700, marginBottom: 16, color: '#e8e0d0', lineHeight: 1.4 },
-  step: { display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
-  stepNum: { minWidth: 20, height: 20, borderRadius: '50%', border: '1px solid', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
-  stepText: { fontSize: 12, color: 'rgba(232,224,208,0.65)', lineHeight: 1.6 },
-  tipsTitle: { fontSize: 13, fontWeight: 700, letterSpacing: 2, color: '#D4AF50', textTransform: 'uppercase', marginBottom: 20 },
+  phaseContent: { padding: 24, flex: 1 },
+  phaseTag: { fontSize: 9, fontWeight: 800, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 10 },
+  phaseTitle: { fontSize: 15, fontWeight: 800, marginBottom: 18, color: TEXT, lineHeight: 1.3 },
+  step: { display: 'flex', alignItems: 'flex-start', gap: 11, marginBottom: 11 },
+  stepNum: { minWidth: 22, height: 22, borderRadius: '50%', border: '1.5px solid', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
+  stepText: { fontSize: 12.5, color: TEXT_MUTED, lineHeight: 1.6 },
+  tipsTitle: { fontSize: 13, fontWeight: 800, letterSpacing: 2.5, color: GOLD, textTransform: 'uppercase', marginBottom: 22 },
   tipsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 },
-  tipCard: { background: 'rgba(232,224,208,0.02)', border: '1px solid rgba(232,224,208,0.06)', borderRadius: 8, padding: 18 },
-  tipIcon: { fontSize: 20, marginBottom: 10 },
-  tipTitle: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: '#e8e0d0' },
-  tipText: { fontSize: 11, color: 'rgba(232,224,208,0.5)', lineHeight: 1.6 },
+  tipCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 4, padding: 20, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  tipIcon: { fontSize: 22, marginBottom: 11 },
+  tipTitle: { fontSize: 13, fontWeight: 800, marginBottom: 9, color: TEXT },
+  tipText: { fontSize: 11.5, color: TEXT_MUTED, lineHeight: 1.6 },
 };

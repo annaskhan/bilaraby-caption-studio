@@ -1,40 +1,89 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&display=swap');
+/* BilAraby Brand System
+   Primary palette from BilAraby Toolkit
+   Dark:   #1B180F (warm black)
+   Cream:  #F9F7EA (off-white)
+   Gold:   #CD891C (mustard)
+   Purple: #734663
+   Teal:   #0B6A62
+   Blue:   #104F84
+   Red:    #D64E3E
+   Fonts:  Chivo (Latin) + Al Marai (Arabic) */
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@import url('https://fonts.googleapis.com/css2?family=Chivo:wght@300;400;500;600;700;800;900&family=El+Messiri:wght@400;500;600;700&display=swap');
+
+:root {
+  --bilaraby-dark: #1B180F;
+  --bilaraby-dark-2: #2A2620;
+  --bilaraby-dark-3: #3A352C;
+  --bilaraby-cream: #F9F7EA;
+  --bilaraby-cream-2: #F2EFE0;
+  --bilaraby-cream-3: #E8E4D0;
+  --bilaraby-gold: #CD891C;
+  --bilaraby-gold-soft: #D6A03F;
+  --bilaraby-gold-dim: rgba(205, 137, 28, 0.15);
+  --bilaraby-purple: #734663;
+  --bilaraby-teal: #0B6A62;
+  --bilaraby-blue: #104F84;
+  --bilaraby-red: #D64E3E;
+  --bilaraby-text: #1B180F;
+  --bilaraby-text-muted: rgba(27, 24, 15, 0.6);
+  --bilaraby-text-soft: rgba(27, 24, 15, 0.4);
+  --bilaraby-border: rgba(27, 24, 15, 0.1);
+  --bilaraby-border-strong: rgba(27, 24, 15, 0.2);
+  --bilaraby-border-gold: rgba(205, 137, 28, 0.4);
+
+  /* Dark panel inverse (used in hero/header/branded panels) */
+  --on-dark-text: #F9F7EA;
+  --on-dark-muted: rgba(249, 247, 234, 0.7);
+  --on-dark-soft: rgba(249, 247, 234, 0.4);
+  --on-dark-border: rgba(249, 247, 234, 0.12);
 }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  background: #06060a;
-  color: #e8e0d0;
-  font-family: 'DM Sans', sans-serif;
+  background: var(--bilaraby-cream);
+  color: var(--bilaraby-text);
+  font-family: 'Chivo', sans-serif;
+  font-feature-settings: 'ss01';
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+a {
+  color: var(--bilaraby-gold);
+  text-decoration: none;
+  border-bottom: 1px solid var(--bilaraby-gold-dim);
+  transition: border-color 0.2s;
+}
+a:hover { border-bottom-color: var(--bilaraby-gold); }
+
+/* Buttons & interactives */
 .lang-btn:hover {
   transform: translateY(-1px);
-  border-color: rgba(212,175,80,0.35) !important;
+  border-color: var(--bilaraby-gold) !important;
 }
 
 .translate-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(212,175,80,0.3) !important;
+  box-shadow: 0 8px 28px rgba(205, 137, 28, 0.3) !important;
 }
 
 .result-card:hover {
-  border-color: rgba(212,175,80,0.18) !important;
-  transform: translateY(-1px);
+  border-color: var(--bilaraby-gold) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(27, 24, 15, 0.08);
 }
 
+/* Animations */
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 
 @keyframes pulse-anim {
-  0%, 100% { opacity: 0.3; }
+  0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
 }
 
@@ -46,27 +95,108 @@ html, body {
 .pulse {
   display: inline-block;
   animation: pulse-anim 1s ease-in-out infinite;
-  color: #D4AF50;
+  color: var(--bilaraby-gold);
 }
 
-input:focus {
-  border-color: rgba(212,175,80,0.4) !important;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(212,175,80,0.08);
-}
-
-a:hover { opacity: 0.8; }
-
+/* Live dot in dashboard */
 .pulse-dot {
   display: inline-block;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #ff4444;
+  background: var(--bilaraby-red);
   animation: live-pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes live-pulse {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255,68,68,0.5); }
-  50% { opacity: 0.6; box-shadow: 0 0 0 4px rgba(255,68,68,0); }
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(214, 78, 62, 0.5); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 5px rgba(214, 78, 62, 0); }
 }
+
+/* Inputs */
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--bilaraby-gold) !important;
+  box-shadow: 0 0 0 3px rgba(205, 137, 28, 0.1);
+}
+
+/* Arabic text utility */
+.arabic { font-family: 'El Messiri', 'Al Marai', serif; direction: rtl; }
+
+/* Brand frame: the L-shaped gold line + double-diamond from BilAraby toolkit */
+.brand-frame {
+  position: relative;
+}
+
+.brand-frame::before {
+  content: '';
+  position: absolute;
+  top: 14px; left: 14px;
+  width: calc(100% - 28px);
+  height: 1px;
+  background: var(--bilaraby-gold);
+  opacity: 0.5;
+}
+
+.brand-frame::after {
+  content: '';
+  position: absolute;
+  top: 14px; left: 14px;
+  width: 1px;
+  height: calc(100% - 28px);
+  background: var(--bilaraby-gold);
+  opacity: 0.5;
+}
+
+/* Double-diamond mark — used as visual accent across the tool */
+.brand-diamond {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  position: relative;
+}
+
+.brand-diamond::before,
+.brand-diamond::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--bilaraby-gold);
+  transform: rotate(45deg);
+  top: 3px;
+}
+
+.brand-diamond::before { left: -1px; }
+.brand-diamond::after  { left: 7px; }
+
+/* Larger diamond for hero */
+.brand-diamond-lg {
+  display: inline-block;
+  width: 28px;
+  height: 16px;
+  position: relative;
+}
+
+.brand-diamond-lg::before,
+.brand-diamond-lg::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--bilaraby-gold);
+  transform: rotate(45deg);
+  top: 1px;
+}
+
+.brand-diamond-lg::before { left: 0; }
+.brand-diamond-lg::after  { left: 14px; }
+
+/* Selection */
+::selection { background: var(--bilaraby-gold); color: var(--bilaraby-cream); }
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bilaraby-cream-2); }
+::-webkit-scrollbar-thumb { background: var(--bilaraby-border-strong); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bilaraby-gold); }
