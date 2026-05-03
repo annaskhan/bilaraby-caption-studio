@@ -127,6 +127,22 @@ export default function Home() {
   const [glossary, setGlossary] = useState(DEFAULT_GLOSSARY);
   const [glossaryExpanded, setGlossaryExpanded] = useState(false);
 
+  // New: live activity stats
+  const [stats, setStats] = useState({
+    videosTranslated: 0,
+    languagesGenerated: 0,
+    segmentsTranslated: 0,
+    youtubeDraftsPushed: 0,
+    lastUsed: null,
+    firstUsed: null,
+  });
+  const [animatedStats, setAnimatedStats] = useState({
+    videosTranslated: 0,
+    languagesGenerated: 0,
+    segmentsTranslated: 0,
+    youtubeDraftsPushed: 0,
+  });
+
   const fileRef = useRef();
 
   // Load glossary from localStorage on mount
@@ -143,6 +159,63 @@ export default function Home() {
       localStorage.setItem('bilaraby_glossary', JSON.stringify(glossary));
     }
   }, [glossary]);
+
+  // Load stats from localStorage on mount
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('bilaraby_stats') : null;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setStats(parsed);
+        setAnimatedStats({
+          videosTranslated: parsed.videosTranslated || 0,
+          languagesGenerated: parsed.languagesGenerated || 0,
+          segmentsTranslated: parsed.segmentsTranslated || 0,
+          youtubeDraftsPushed: parsed.youtubeDraftsPushed || 0,
+        });
+      } catch {}
+    }
+  }, []);
+
+  // Persist stats on change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bilaraby_stats', JSON.stringify(stats));
+    }
+  }, [stats]);
+
+  // Count-up animation when stats change
+  useEffect(() => {
+    const keys = ['videosTranslated', 'languagesGenerated', 'segmentsTranslated', 'youtubeDraftsPushed'];
+    const duration = 800;
+    const steps = 24;
+    const stepTime = duration / steps;
+    const startVals = { ...animatedStats };
+    const diffs = {};
+    keys.forEach(k => { diffs[k] = stats[k] - startVals[k]; });
+
+    if (keys.every(k => diffs[k] === 0)) return;
+
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      const progress = step / steps;
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const next = {};
+      keys.forEach(k => { next[k] = Math.round(startVals[k] + diffs[k] * eased); });
+      setAnimatedStats(next);
+      if (step >= steps) {
+        clearInterval(interval);
+        setAnimatedStats({
+          videosTranslated: stats.videosTranslated,
+          languagesGenerated: stats.languagesGenerated,
+          segmentsTranslated: stats.segmentsTranslated,
+          youtubeDraftsPushed: stats.youtubeDraftsPushed,
+        });
+      }
+    }, stepTime);
+    return () => clearInterval(interval);
+  }, [stats.videosTranslated, stats.languagesGenerated, stats.segmentsTranslated, stats.youtubeDraftsPushed]);
 
   const handleFile = useCallback((f) => {
     if (!f || !f.name.endsWith('.srt')) { setError('Please upload a valid .srt file'); return; }
@@ -205,6 +278,22 @@ export default function Home() {
       setResults(newResults);
       setActiveStageIndex(4);
       setStage('done');
+
+      // Update activity stats
+      const successfulLangs = Object.keys(newResults).length;
+      if (successfulLangs > 0) {
+        const segmentCount = blocks.length;
+        const now = new Date().toISOString();
+        setStats(prev => ({
+          videosTranslated: prev.videosTranslated + 1,
+          languagesGenerated: prev.languagesGenerated + successfulLangs,
+          segmentsTranslated: prev.segmentsTranslated + (segmentCount * successfulLangs),
+          youtubeDraftsPushed: prev.youtubeDraftsPushed,
+          lastUsed: now,
+          firstUsed: prev.firstUsed || now,
+        }));
+      }
+
       if (videoId && accessToken) setYtExpanded(true);
     } catch (e) {
       setError('Translation failed. Please try again.');
@@ -232,6 +321,7 @@ export default function Home() {
     try {
       await uploadToYouTube(results[code], videoId.trim(), lang.ytCode, lang.label, accessToken.trim());
       setUploadStatus(s => ({ ...s, [code]: 'done' }));
+      setStats(prev => ({ ...prev, youtubeDraftsPushed: prev.youtubeDraftsPushed + 1, lastUsed: new Date().toISOString() }));
     } catch (e) {
       setUploadStatus(s => ({ ...s, [code]: `error:${e.message}` }));
     }
@@ -273,6 +363,31 @@ export default function Home() {
     };
     reader.readAsText(f);
   };
+
+  const resetStats = () => {
+    if (confirm('Reset all activity counters to zero? This cannot be undone.')) {
+      setStats({ videosTranslated: 0, languagesGenerated: 0, segmentsTranslated: 0, youtubeDraftsPushed: 0, lastUsed: null, firstUsed: null });
+      setAnimatedStats({ videosTranslated: 0, languagesGenerated: 0, segmentsTranslated: 0, youtubeDraftsPushed: 0 });
+    }
+  };
+
+  const formatRelativeTime = (iso) => {
+    if (!iso) return 'Never used';
+    const diff = Date.now() - new Date(iso).getTime();
+    const sec = Math.floor(diff / 1000);
+    if (sec < 60) return 'Just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min} minute${min !== 1 ? 's' : ''} ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr} hour${hr !== 1 ? 's' : ''} ago`;
+    const days = Math.floor(hr / 24);
+    if (days < 30) return `${days} day${days !== 1 ? 's' : ''} ago`;
+    return new Date(iso).toLocaleDateString();
+  };
+
+  const formatNum = (n) => n.toLocaleString();
+
+  const activeGlossaryCount = glossary.filter(g => g.term && g.term.trim()).length;
 
   return (
     <>
@@ -583,14 +698,54 @@ export default function Home() {
               </div>
             )}
 
-            <div style={s.statBar}>
-              <div style={s.stat}><span style={s.statNum}>150,000</span><span style={s.statLabel}>QAR annual saving</span></div>
-              <div style={s.statDivider}>✦</div>
-              <div style={s.stat}><span style={s.statNum}>~$0.15</span><span style={s.statLabel}>per video translated</span></div>
-              <div style={s.statDivider}>✦</div>
-              <div style={s.stat}><span style={s.statNum}>12</span><span style={s.statLabel}>languages supported</span></div>
-              <div style={s.statDivider}>✦</div>
-              <div style={s.stat}><span style={s.statNum}>∞</span><span style={s.statLabel}>videos per month</span></div>
+            <div style={s.dashSection}>
+              <div style={s.dashHeader}>
+                <div style={s.dashTitle}>
+                  <span style={s.dashLive}><span className="pulse-dot" />LIVE</span>
+                  <span style={s.dashTitleText}>Activity Dashboard</span>
+                </div>
+                <div style={s.dashSubtitle}>
+                  <span>Last activity: <span style={s.dashSubAccent}>{formatRelativeTime(stats.lastUsed)}</span></span>
+                  <button onClick={resetStats} style={s.dashReset}>Reset Counters</button>
+                </div>
+              </div>
+              <div style={s.dashGrid}>
+                <div style={s.dashCard}>
+                  <div style={s.dashCardLabel}>Videos Translated</div>
+                  <div style={s.dashCardNum}>{formatNum(animatedStats.videosTranslated)}</div>
+                  <div style={s.dashCardSub}>total runs</div>
+                </div>
+                <div style={s.dashCard}>
+                  <div style={s.dashCardLabel}>Caption Tracks Created</div>
+                  <div style={s.dashCardNum}>{formatNum(animatedStats.languagesGenerated)}</div>
+                  <div style={s.dashCardSub}>across all videos</div>
+                </div>
+                <div style={s.dashCard}>
+                  <div style={s.dashCardLabel}>Segments Translated</div>
+                  <div style={s.dashCardNum}>{formatNum(animatedStats.segmentsTranslated)}</div>
+                  <div style={s.dashCardSub}>subtitle lines processed</div>
+                </div>
+                <div style={s.dashCard}>
+                  <div style={s.dashCardLabel}>YouTube Drafts Pushed</div>
+                  <div style={s.dashCardNum}>{formatNum(animatedStats.youtubeDraftsPushed)}</div>
+                  <div style={s.dashCardSub}>uploaded to YouTube</div>
+                </div>
+                <div style={s.dashCard}>
+                  <div style={s.dashCardLabel}>Glossary Terms Active</div>
+                  <div style={s.dashCardNum}>{formatNum(activeGlossaryCount)}</div>
+                  <div style={s.dashCardSub}>brand-enforced terms</div>
+                </div>
+                <div style={s.dashCard}>
+                  <div style={s.dashCardLabel}>Languages Supported</div>
+                  <div style={s.dashCardNum}>12</div>
+                  <div style={s.dashCardSub}>across 6 continents</div>
+                </div>
+              </div>
+              {stats.firstUsed && (
+                <div style={s.dashFooter}>
+                  Tracking activity since {new Date(stats.firstUsed).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </div>
+              )}
             </div>
           </main>
         )}
@@ -792,11 +947,21 @@ const s = {
   resultActionBtn: { flex: 1, justifyContent: 'center', padding: '9px 0', fontSize: 10, letterSpacing: 1.5, display: 'flex', alignItems: 'center' },
   ytUploadBtn: { background: 'rgba(68,102,204,0.15)', border: '1px solid rgba(68,102,204,0.3)', color: '#6B8FD4' },
   ytSuccessBar: { marginTop: 20, padding: '14px 20px', background: 'rgba(80,212,160,0.06)', border: '1px solid rgba(80,212,160,0.2)', borderRadius: 8, fontSize: 13, color: '#50D4A0', lineHeight: 1.6 },
-  statBar: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 36, marginTop: 60, padding: '28px 0', borderTop: '1px solid rgba(232,224,208,0.05)' },
-  stat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 },
-  statNum: { fontSize: 22, fontWeight: 800, color: '#D4AF50', letterSpacing: -0.5 },
-  statLabel: { fontSize: 9, color: 'rgba(232,224,208,0.3)', letterSpacing: 2, textTransform: 'uppercase' },
-  statDivider: { color: 'rgba(212,175,80,0.15)', fontSize: 10 },
+
+  dashSection: { marginTop: 56, padding: '32px 0 0', borderTop: '1px solid rgba(232,224,208,0.05)' },
+  dashHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 },
+  dashTitle: { display: 'flex', alignItems: 'center', gap: 14 },
+  dashLive: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 9, fontWeight: 700, letterSpacing: 2, color: '#ff4444', background: 'rgba(255,68,68,0.08)', border: '1px solid rgba(255,68,68,0.25)', padding: '4px 10px', borderRadius: 3, textTransform: 'uppercase' },
+  dashTitleText: { fontSize: 15, fontWeight: 700, letterSpacing: 0.5, color: '#e8e0d0' },
+  dashSubtitle: { display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: 'rgba(232,224,208,0.4)' },
+  dashSubAccent: { color: '#D4AF50', fontWeight: 600 },
+  dashReset: { background: 'transparent', border: '1px solid rgba(232,224,208,0.1)', color: 'rgba(232,224,208,0.4)', fontSize: 10, fontWeight: 600, letterSpacing: 1, padding: '5px 10px', borderRadius: 4, cursor: 'pointer', textTransform: 'uppercase', fontFamily: 'inherit', transition: 'all 0.2s' },
+  dashGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 },
+  dashCard: { background: 'rgba(232,224,208,0.025)', border: '1px solid rgba(232,224,208,0.07)', borderRadius: 8, padding: 20, transition: 'all 0.3s', position: 'relative', overflow: 'hidden' },
+  dashCardLabel: { fontSize: 9, letterSpacing: 2, color: 'rgba(212,175,80,0.7)', textTransform: 'uppercase', fontWeight: 700, marginBottom: 12 },
+  dashCardNum: { fontSize: 36, fontWeight: 800, color: '#D4AF50', letterSpacing: -1, lineHeight: 1, marginBottom: 6, fontVariantNumeric: 'tabular-nums' },
+  dashCardSub: { fontSize: 10, color: 'rgba(232,224,208,0.35)', letterSpacing: 0.5 },
+  dashFooter: { marginTop: 18, fontSize: 10, color: 'rgba(232,224,208,0.3)', textAlign: 'center', letterSpacing: 1 },
 };
 
 const g = {
