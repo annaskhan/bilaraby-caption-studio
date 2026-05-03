@@ -192,6 +192,34 @@ input:focus, textarea:focus {
 .brand-diamond-lg::before { left: 0; }
 .brand-diamond-lg::after  { left: 14px; }
 
+/* Extra-large diamond for hero panels */
+.brand-diamond-xl {
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  position: relative;
+}
+
+.brand-diamond-xl::before,
+.brand-diamond-xl::after {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  background: var(--bilaraby-gold);
+  transform: rotate(45deg);
+  top: 1px;
+}
+
+.brand-diamond-xl::before { left: 0; }
+.brand-diamond-xl::after  { left: 22px; }
+
+.login-btn:hover {
+  background: var(--bilaraby-gold-soft) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(205, 137, 28, 0.3);
+}
+
 /* Selection */
 ::selection { background: var(--bilaraby-gold); color: var(--bilaraby-cream); }
 
