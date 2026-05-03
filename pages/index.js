@@ -205,6 +205,14 @@ export default function Home() {
   const [videoId, setVideoId] = useState('');
   const [ytConfigured, setYtConfigured] = useState(null);
 
+  // DOCX re-upload (review workflow)
+  const [reuploadExpanded, setReuploadExpanded] = useState(false);
+  const [reuploadFile, setReuploadFile] = useState(null);
+  const [reuploadLang, setReuploadLang] = useState('en');
+  const [reuploadStatus, setReuploadStatus] = useState(null); // null | 'parsing' | 'ready' | 'uploaded' | 'error'
+  const [reuploadResult, setReuploadResult] = useState(null);
+  const reuploadInputRef = useRef();
+
   // Stats — global + per user
   const [stats, setStats] = useState({
     videosTranslated: 0, languagesGenerated: 0, segmentsTranslated: 0,
@@ -421,6 +429,39 @@ export default function Home() {
   };
   const downloadAll = () => Object.keys(results).forEach((c, i) => setTimeout(() => download(c), i * 200));
 
+  const downloadDocx = async (code) => {
+    const lang = LANGUAGES.find(l => l.code === code);
+    const originalBlocks = parseSRT(srtContent);
+    try {
+      const response = await fetch('/api/generate-docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          langLabel: lang.label,
+          langCode: code,
+          videoTitle: file?.name?.replace('.srt', '') || '',
+          videoId,
+          originalBlocks,
+          translatedSrt: results[code],
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'DOCX generation failed');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${file?.name?.replace('.srt', '') || 'subtitles'}_${code}_review.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(`Failed to generate review document: ${e.message}`);
+    }
+  };
+  const downloadAllDocx = () => Object.keys(results).forEach((c, i) => setTimeout(() => downloadDocx(c), i * 400));
+
   // ========= YouTube upload =========
   const handleUpload = async (code) => {
     const lang = LANGUAGES.find(l => l.code === code);
@@ -439,7 +480,67 @@ export default function Home() {
     for (const code of Object.keys(results)) { await handleUpload(code); await sleep(800); }
   };
 
-  // ========= Glossary CRUD =========
+  // ========= DOCX Re-upload (Review Workflow) =========
+  const handleReuploadFile = async (f) => {
+    if (!f || !f.name.match(/\.docx$/i)) {
+      setError('Please upload a .docx review file');
+      return;
+    }
+    setError('');
+    setReuploadFile(f);
+    setReuploadStatus('parsing');
+    setReuploadResult(null);
+
+    const formData = new FormData();
+    formData.append('file', f);
+
+    try {
+      const response = await fetch('/api/parse-docx', { method: 'POST', body: formData });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to parse document');
+      setReuploadResult(data);
+      setReuploadStatus('ready');
+    } catch (e) {
+      setReuploadStatus('error');
+      setError(`Re-upload failed: ${e.message}`);
+    }
+  };
+
+  const downloadReuploadedSrt = () => {
+    if (!reuploadResult) return;
+    const blob = new Blob([reuploadResult.srtContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${reuploadFile.name.replace(/\.docx$/i, '').replace(/_review$/, '')}_corrected.srt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const uploadReuploadedToYouTube = async () => {
+    if (!reuploadResult || !videoId.trim() || !ytConfigured) {
+      setError('Need video ID and YouTube credentials configured');
+      return;
+    }
+    const lang = LANGUAGES.find(l => l.code === reuploadLang);
+    setReuploadStatus('uploading');
+    try {
+      await uploadToYouTubeServer(reuploadResult.srtContent, videoId.trim(), lang.ytCode, lang.label);
+      setReuploadStatus('uploaded');
+      setStats(prev => ({ ...prev, youtubeDraftsPushed: prev.youtubeDraftsPushed + 1, lastUsed: new Date().toISOString() }));
+    } catch (e) {
+      setReuploadStatus('error');
+      setError(`YouTube upload failed: ${e.message}`);
+    }
+  };
+
+  const resetReupload = () => {
+    setReuploadFile(null);
+    setReuploadStatus(null);
+    setReuploadResult(null);
+  };
+
+
   const addGlossaryTerm = () => setGlossary([...glossary, { term: '', translation: '', keepAsIs: true, notes: '' }]);
   const updateGlossaryTerm = (idx, field, value) => {
     const next = [...glossary];
@@ -783,6 +884,89 @@ export default function Home() {
               )}
             </div>
 
+            {/* Re-upload edited translation */}
+            <div style={s.ytConfigCard}>
+              <div style={s.ytConfigHeader} onClick={() => setReuploadExpanded(!reuploadExpanded)}>
+                <div style={s.glossaryTitle}>
+                  <span style={s.cardLabel}>05 — Re-Upload Edited Translation</span>
+                  <span style={s.glossaryCount}>
+                    {reuploadStatus === 'ready' ? `✓ ${reuploadResult?.segmentCount || 0} segments parsed` :
+                     reuploadStatus === 'uploaded' ? '✓ uploaded to YouTube' :
+                     'apply translator corrections'}
+                  </span>
+                </div>
+                <span style={s.chevron}>{reuploadExpanded ? '▲' : '▼'}</span>
+              </div>
+              {reuploadExpanded && (
+                <div style={s.ytConfigBody}>
+                  <div style={s.ytInfoBox}>
+                    <div style={s.ytInfoTitle}>The Review Loop</div>
+                    <div style={s.ytStepText}>
+                      Translators review the AI translation in the Word document, edit any segments that need correction, save the file, and upload it here. The tool will rebuild the SRT with all corrections applied — ready to download or push to YouTube.
+                    </div>
+                  </div>
+
+                  {!reuploadFile && (
+                    <div style={{ ...s.dropzone, marginTop: 16 }}
+                      onClick={() => reuploadInputRef.current.click()}>
+                      <input ref={reuploadInputRef} type="file" accept=".docx" style={{ display: 'none' }}
+                        onChange={e => handleReuploadFile(e.target.files[0])} />
+                      <div style={s.dropContent}>
+                        <div style={s.dropIconLg}>📄</div>
+                        <div style={s.dropText}>Drop your edited .DOCX review file</div>
+                        <div style={s.dropSub}>or click to browse</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {reuploadFile && (
+                    <div style={{ marginTop: 16 }}>
+                      <div style={s.reuploadFileBar}>
+                        <div>
+                          <div style={s.reuploadFileName}>{reuploadFile.name}</div>
+                          {reuploadStatus === 'parsing' && <div style={s.reuploadStatus}><span className="spinner">◈</span> Parsing document...</div>}
+                          {reuploadStatus === 'ready' && <div style={{ ...s.reuploadStatus, color: TEAL }}>✓ {reuploadResult.segmentCount} segments parsed and ready</div>}
+                          {reuploadStatus === 'uploading' && <div style={s.reuploadStatus}><span className="spinner">◈</span> Uploading to YouTube...</div>}
+                          {reuploadStatus === 'uploaded' && <div style={{ ...s.reuploadStatus, color: TEAL }}>✓ Successfully uploaded to YouTube as draft</div>}
+                          {reuploadStatus === 'error' && <div style={{ ...s.reuploadStatus, color: RED }}>⚠ Failed to process</div>}
+                        </div>
+                        <button onClick={resetReupload} style={s.glossaryActionBtn}>Change file</button>
+                      </div>
+
+                      {reuploadStatus === 'ready' && (
+                        <>
+                          <div style={s.ytFields}>
+                            <div style={s.ytField}>
+                              <label style={s.ytLabel}>Language of this translation</label>
+                              <select value={reuploadLang} onChange={e => setReuploadLang(e.target.value)} style={s.ytInput}>
+                                {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
+                              </select>
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: 12, marginTop: 18, flexWrap: 'wrap' }}>
+                            <button onClick={downloadReuploadedSrt} style={{ ...s.translateBtn, padding: '13px 26px', fontSize: 12 }} className="translate-btn">
+                              ↓ &nbsp;Download Corrected SRT
+                            </button>
+                            {videoId && ytConfigured && (
+                              <button onClick={uploadReuploadedToYouTube} style={{ ...s.translateBtn, padding: '13px 26px', fontSize: 12, background: BLUE, borderColor: BLUE, color: CREAM }} className="translate-btn">
+                                ▶ &nbsp;Upload Corrected Version to YouTube
+                              </button>
+                            )}
+                          </div>
+                          {(!videoId || !ytConfigured) && (
+                            <div style={{ marginTop: 12, fontSize: 12, color: TEXT_SOFT }}>
+                              {!ytConfigured ? '⚠ YouTube not configured by admin' : '⚠ Enter a Video ID in Section 04 to enable YouTube upload'}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Run button */}
             <div style={s.actionRow}>
               <button onClick={runTranslation}
@@ -824,7 +1008,8 @@ export default function Home() {
                     {videoId && ytConfigured && (
                       <button onClick={handleUploadAll} style={{ ...s.translateBtn, ...s.uploadAllBtn }} className="translate-btn">▶ &nbsp;Upload All to YouTube</button>
                     )}
-                    <button onClick={downloadAll} style={{ ...s.translateBtn, ...s.downloadAllBtn }} className="translate-btn">↓ &nbsp;Download All</button>
+                    <button onClick={downloadAllDocx} style={{ ...s.translateBtn, ...s.downloadAllBtn, background: PURPLE, borderColor: PURPLE, color: CREAM }} className="translate-btn">📄 &nbsp;Download All as Word</button>
+                    <button onClick={downloadAll} style={{ ...s.translateBtn, ...s.downloadAllBtn }} className="translate-btn">↓ &nbsp;Download All as SRT</button>
                   </div>
                 </div>
                 <div style={s.resultsGrid}>
@@ -859,7 +1044,8 @@ export default function Home() {
                               {isUploading ? <span className="spinner">◈</span> : '▶'} &nbsp;{isUploading ? 'Uploading' : 'Upload'}
                             </button>
                           )}
-                          <button onClick={() => download(code)} style={s.resultActionBtn} className="lang-btn">↓ &nbsp;Download</button>
+                          <button onClick={() => downloadDocx(code)} style={{ ...s.resultActionBtn, ...s.docxBtn }} className="lang-btn" title="Download as Word for review">📄 &nbsp;Word</button>
+                          <button onClick={() => download(code)} style={s.resultActionBtn} className="lang-btn">↓ &nbsp;SRT</button>
                         </div>
                       </div>
                     );
@@ -1265,6 +1451,10 @@ const s = {
   resultBtns: { display: 'flex', gap: 10 },
   resultActionBtn: { flex: 1, justifyContent: 'center', padding: '11px 0', fontSize: 11, letterSpacing: 1.5, display: 'flex', alignItems: 'center' },
   ytUploadBtn: { background: 'rgba(16, 79, 132, 0.08)', border: `1px solid ${BLUE}`, color: BLUE },
+  docxBtn: { background: 'rgba(115, 70, 99, 0.08)', border: `1px solid ${PURPLE}`, color: PURPLE },
+  reuploadFileBar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: CREAM_2, border: `1px solid ${BORDER}`, borderRadius: 4, marginTop: 16 },
+  reuploadFileName: { fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 4 },
+  reuploadStatus: { fontSize: 12, color: TEXT_MUTED, fontWeight: 500 },
   ytSuccessBar: { marginTop: 22, padding: '16px 22px', background: 'rgba(11, 106, 98, 0.08)', border: `1px solid ${TEAL}`, borderRadius: 3, fontSize: 14, color: TEAL, lineHeight: 1.6, fontWeight: 500 },
 
   // Activity Dashboard (larger)
