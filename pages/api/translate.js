@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { blocks, langLabel } = req.body;
+  const { blocks, langLabel, glossary } = req.body;
 
   if (!blocks || !langLabel) {
     return res.status(400).json({ error: 'Missing blocks or langLabel' });
@@ -16,7 +16,27 @@ export default async function handler(req, res) {
 
   const textOnly = blocks.map((b, i) => `[${i}] ${b.text}`).join('\n---\n');
 
-  const prompt = `You are a professional subtitle translator. Translate the following subtitle text segments from Arabic to ${langLabel}.
+  let glossarySection = '';
+  if (glossary && glossary.length > 0) {
+    const glossaryText = glossary
+      .filter(g => g.term && g.term.trim())
+      .map(g => {
+        const rule = g.keepAsIs
+          ? `Keep as "${g.term}" — do NOT translate`
+          : g.translation
+            ? `Translate to "${g.translation}"`
+            : `Keep as "${g.term}"`;
+        const note = g.notes ? ` (${g.notes})` : '';
+        return `- "${g.term}": ${rule}${note}`;
+      })
+      .join('\n');
+
+    if (glossaryText) {
+      glossarySection = `\n\nMANDATORY BRAND GLOSSARY — these terms MUST follow these rules in every segment:\n${glossaryText}\n`;
+    }
+  }
+
+  const prompt = `You are a professional subtitle translator for BilAraby, an Arabic Islamic content channel. Translate the following subtitle text segments from Arabic to ${langLabel}.
 
 CRITICAL RULES:
 - Preserve the [INDEX] markers exactly as-is
@@ -24,7 +44,8 @@ CRITICAL RULES:
 - Translate ONLY the text after [INDEX], not the markers themselves
 - Preserve line breaks within each segment
 - Keep natural, colloquial tone suitable for YouTube captions
-- Do NOT add explanations or notes
+- Maintain religious and cultural respect for Islamic terminology
+- Do NOT add explanations or notes${glossarySection}
 
 SUBTITLE SEGMENTS:
 ${textOnly}

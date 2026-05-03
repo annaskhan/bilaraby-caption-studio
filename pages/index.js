@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Head from 'next/head';
 
 const LANGUAGES = [
@@ -24,6 +24,26 @@ const PIPELINE_STAGES = [
   { id: 'ready',     label: 'Ready',           icon: '↓' },
 ];
 
+const DEFAULT_GLOSSARY = [
+  { term: 'BilAraby',       translation: 'BilAraby',       keepAsIs: true,  notes: 'Brand name — never translate' },
+  { term: 'بالعربي',        translation: 'BilAraby',       keepAsIs: false, notes: 'Render brand in Latin script' },
+  { term: 'Allah',          translation: 'Allah',          keepAsIs: true,  notes: 'Never translate to God/Dieu/Dios etc.' },
+  { term: 'الله',           translation: 'Allah',          keepAsIs: false, notes: 'Always render as Allah' },
+  { term: 'Quran',          translation: 'Quran',          keepAsIs: true,  notes: 'Capitalized, never Koran' },
+  { term: 'القرآن',         translation: 'Quran',          keepAsIs: false, notes: '' },
+  { term: 'Sunnah',         translation: 'Sunnah',         keepAsIs: true,  notes: '' },
+  { term: 'Hadith',         translation: 'Hadith',         keepAsIs: true,  notes: '' },
+  { term: 'Ramadan',        translation: 'Ramadan',        keepAsIs: true,  notes: 'Never Ramazan' },
+  { term: 'In sha Allah',   translation: 'In sha Allah',   keepAsIs: true,  notes: '' },
+  { term: 'Mash\'Allah',    translation: 'Mash\'Allah',    keepAsIs: true,  notes: '' },
+  { term: 'Alhamdulillah',  translation: 'Alhamdulillah',  keepAsIs: true,  notes: '' },
+  { term: 'Bismillah',      translation: 'Bismillah',      keepAsIs: true,  notes: '' },
+  { term: 'Du\'a',          translation: 'Du\'a',          keepAsIs: true,  notes: 'With apostrophe' },
+  { term: 'Dhikr',          translation: 'Dhikr',          keepAsIs: true,  notes: '' },
+  { term: 'Hijra',          translation: 'Hijra',          keepAsIs: true,  notes: '' },
+  { term: 'Eid',            translation: 'Eid',            keepAsIs: true,  notes: '' },
+];
+
 function parseSRT(content) {
   const blocks = content.trim().split(/\n\s*\n/);
   return blocks.map((block) => {
@@ -36,11 +56,11 @@ function buildSRT(blocks) {
   return blocks.map((b, i) => `${i + 1}\n${b.timestamp}\n${b.text}`).join('\n\n') + '\n';
 }
 
-async function translateBlocks(blocks, langLabel) {
+async function translateBlocks(blocks, langLabel, glossary) {
   const response = await fetch('/api/translate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ blocks, langLabel }),
+    body: JSON.stringify({ blocks, langLabel, glossary }),
   });
   if (!response.ok) {
     const err = await response.json();
@@ -48,6 +68,17 @@ async function translateBlocks(blocks, langLabel) {
   }
   const data = await response.json();
   return data.blocks;
+}
+
+async function fetchYouTubeCaptions(videoUrl) {
+  const response = await fetch('/api/youtube-fetch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ videoUrl }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Failed to fetch captions');
+  return data;
 }
 
 async function uploadToYouTube(srtContent, videoId, langCode, langLabel, accessToken) {
@@ -86,7 +117,32 @@ export default function Home() {
   const [accessToken, setAccessToken]     = useState('');
   const [uploadStatus, setUploadStatus]   = useState({});
   const [activeTab, setActiveTab]         = useState('translate');
+
+  // New: input mode toggle
+  const [inputMode, setInputMode] = useState('file'); // 'file' or 'youtube'
+  const [ytFetchUrl, setYtFetchUrl] = useState('');
+  const [ytFetching, setYtFetching] = useState(false);
+
+  // New: glossary
+  const [glossary, setGlossary] = useState(DEFAULT_GLOSSARY);
+  const [glossaryExpanded, setGlossaryExpanded] = useState(false);
+
   const fileRef = useRef();
+
+  // Load glossary from localStorage on mount
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('bilaraby_glossary') : null;
+    if (saved) {
+      try { setGlossary(JSON.parse(saved)); } catch {}
+    }
+  }, []);
+
+  // Save glossary on change
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bilaraby_glossary', JSON.stringify(glossary));
+    }
+  }, [glossary]);
 
   const handleFile = useCallback((f) => {
     if (!f || !f.name.endsWith('.srt')) { setError('Please upload a valid .srt file'); return; }
@@ -98,6 +154,23 @@ export default function Home() {
 
   const onDrop = (e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); };
   const toggleLang = (code) => setSelectedLangs(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
+
+  const fetchFromYouTube = async () => {
+    if (!ytFetchUrl.trim()) { setError('Please enter a YouTube URL or video ID'); return; }
+    setError(''); setYtFetching(true); setResults({}); setStage('idle'); setActiveStageIndex(-1);
+    try {
+      const data = await fetchYouTubeCaptions(ytFetchUrl);
+      setSrtContent(data.srtContent);
+      const fakeFile = { name: `youtube_${data.videoId}.srt`, size: data.srtContent.length };
+      setFile(fakeFile);
+      // Auto-fill the videoId for upload section
+      if (data.videoId && !videoId) setVideoId(data.videoId);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setYtFetching(false);
+    }
+  };
 
   const runTranslation = async () => {
     if (!srtContent || selectedLangs.length === 0) return;
@@ -114,11 +187,13 @@ export default function Home() {
       selectedLangs.forEach(l => (progMap[l] = 'pending'));
       setProgress({ ...progMap });
 
+      const activeGlossary = glossary.filter(g => g.term && g.term.trim());
+
       await Promise.all(selectedLangs.map(async (code) => {
         const lang = LANGUAGES.find(l => l.code === code);
         try {
           setProgress(p => ({ ...p, [code]: 'translating' }));
-          const translated = await translateBlocks(blocks, lang.label);
+          const translated = await translateBlocks(blocks, lang.label, activeGlossary);
           newResults[code] = buildSRT(translated);
           setProgress(p => ({ ...p, [code]: 'done' }));
         } catch (e) {
@@ -166,6 +241,39 @@ export default function Home() {
     for (const code of Object.keys(results)) { await handleUpload(code); await sleep(800); }
   };
 
+  // Glossary functions
+  const addGlossaryTerm = () => setGlossary([...glossary, { term: '', translation: '', keepAsIs: true, notes: '' }]);
+  const updateGlossaryTerm = (idx, field, value) => {
+    const next = [...glossary];
+    next[idx] = { ...next[idx], [field]: value };
+    setGlossary(next);
+  };
+  const removeGlossaryTerm = (idx) => setGlossary(glossary.filter((_, i) => i !== idx));
+  const resetGlossary = () => { if (confirm('Reset glossary to BilAraby defaults?')) setGlossary(DEFAULT_GLOSSARY); };
+  const exportGlossary = () => {
+    const blob = new Blob([JSON.stringify(glossary, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'bilaraby-glossary.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const importGlossary = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        if (Array.isArray(parsed)) setGlossary(parsed);
+      } catch {
+        alert('Invalid glossary JSON file');
+      }
+    };
+    reader.readAsText(f);
+  };
+
   return (
     <>
       <Head>
@@ -175,7 +283,6 @@ export default function Home() {
       </Head>
 
       <div style={s.root}>
-        {/* Header */}
         <header style={s.header}>
           <div style={s.headerInner}>
             <div style={s.logo}>
@@ -195,13 +302,11 @@ export default function Home() {
 
         {activeTab === 'guide' ? <GuideTab /> : (
           <main style={s.main}>
-            {/* Hero */}
             <div style={s.hero}>
               <h1 style={s.heroTitle}>Translate Once.<br /><span style={s.heroAccent}>Reach Everyone.</span></h1>
-              <p style={s.heroSub}>Upload your Arabic SRT. Claude translates to 12 languages simultaneously. Push directly to YouTube as drafts — your team reviews and publishes.</p>
+              <p style={s.heroSub}>Upload an Arabic SRT or paste a YouTube link. Claude translates to 12 languages with your custom brand glossary. Push directly to YouTube as drafts.</p>
             </div>
 
-            {/* Pipeline */}
             <div style={s.pipelineWrap}>
               {PIPELINE_STAGES.map((stg, i) => (
                 <div key={stg.id} style={s.pipelineItem}>
@@ -221,34 +326,64 @@ export default function Home() {
             </div>
 
             <div style={s.grid}>
-              {/* Upload */}
+              {/* Input section with mode toggle */}
               <div style={s.card}>
-                <div style={s.cardLabel}>01 — SOURCE FILE</div>
-                <div style={{ ...s.dropzone, ...(dragOver ? s.dropzoneActive : {}), ...(file ? s.dropzoneFilled : {}) }}
-                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={onDrop}
-                  onClick={() => fileRef.current.click()}>
-                  <input ref={fileRef} type="file" accept=".srt" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
-                  {file ? (
-                    <div style={s.fileInfo}>
-                      <div style={s.fileIcon}>◈</div>
-                      <div style={s.fileName}>{file.name}</div>
-                      <div style={s.fileSize}>{(file.size / 1024).toFixed(1)} KB · {parseSRT(srtContent).length} segments</div>
-                      <div style={s.fileChange}>click to change</div>
-                    </div>
-                  ) : (
-                    <div style={s.dropContent}>
-                      <div style={s.dropIconLg}>⬆</div>
-                      <div style={s.dropText}>Drop your .SRT file here</div>
-                      <div style={s.dropSub}>or click to browse</div>
-                    </div>
-                  )}
+                <div style={s.cardLabelRow}>
+                  <div style={s.cardLabel}>01 — SOURCE</div>
+                  <div style={s.modeToggle}>
+                    <button onClick={() => setInputMode('file')} style={{ ...s.modeBtn, ...(inputMode === 'file' ? s.modeBtnActive : {}) }}>SRT File</button>
+                    <button onClick={() => setInputMode('youtube')} style={{ ...s.modeBtn, ...(inputMode === 'youtube' ? s.modeBtnActive : {}) }}>YouTube Link</button>
+                  </div>
                 </div>
+
+                {inputMode === 'file' ? (
+                  <div style={{ ...s.dropzone, ...(dragOver ? s.dropzoneActive : {}), ...(file ? s.dropzoneFilled : {}) }}
+                    onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={onDrop}
+                    onClick={() => fileRef.current.click()}>
+                    <input ref={fileRef} type="file" accept=".srt" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
+                    {file ? (
+                      <div style={s.fileInfo}>
+                        <div style={s.fileIcon}>◈</div>
+                        <div style={s.fileName}>{file.name}</div>
+                        <div style={s.fileSize}>{(file.size / 1024).toFixed(1)} KB · {parseSRT(srtContent).length} segments</div>
+                        <div style={s.fileChange}>click to change</div>
+                      </div>
+                    ) : (
+                      <div style={s.dropContent}>
+                        <div style={s.dropIconLg}>⬆</div>
+                        <div style={s.dropText}>Drop your .SRT file here</div>
+                        <div style={s.dropSub}>or click to browse</div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={s.ytFetchBox}>
+                    <input
+                      style={s.ytUrlInput}
+                      placeholder="https://www.youtube.com/watch?v=..."
+                      value={ytFetchUrl}
+                      onChange={e => setYtFetchUrl(e.target.value)}
+                    />
+                    <button onClick={fetchFromYouTube} disabled={ytFetching || !ytFetchUrl.trim()}
+                      style={{ ...s.ytFetchBtn, ...(ytFetching || !ytFetchUrl.trim() ? s.btnDisabled : {}) }}
+                      className="translate-btn">
+                      {ytFetching ? <><span className="spinner">◈</span>&nbsp; Fetching...</> : 'Fetch Captions'}
+                    </button>
+                    {file && srtContent && inputMode === 'youtube' && (
+                      <div style={s.ytFetchSuccess}>
+                        ✓ Loaded {parseSRT(srtContent).length} caption segments from {file.name}
+                      </div>
+                    )}
+                    <div style={s.ytFetchNote}>
+                      ⚠ Only works for videos with public Arabic captions. If it fails, download the SRT manually from YouTube Studio and switch to SRT File mode.
+                    </div>
+                  </div>
+                )}
                 {error && <div style={s.error}>{error}</div>}
               </div>
 
-              {/* Languages */}
               <div style={s.card}>
                 <div style={s.cardLabel}>02 — TARGET LANGUAGES</div>
                 <div style={s.langGrid}>
@@ -263,6 +398,59 @@ export default function Home() {
                 </div>
                 <div style={s.langCount}>{selectedLangs.length} language{selectedLangs.length !== 1 ? 's' : ''} selected</div>
               </div>
+            </div>
+
+            {/* Glossary */}
+            <div style={s.glossaryCard}>
+              <div style={s.glossaryHeader} onClick={() => setGlossaryExpanded(!glossaryExpanded)}>
+                <div style={s.glossaryTitle}>
+                  <span style={s.glossaryIcon}>📖</span>
+                  <span>02.5 — BRAND GLOSSARY</span>
+                  <span style={s.glossaryCount}>{glossary.filter(g => g.term && g.term.trim()).length} terms active</span>
+                </div>
+                <span style={s.ytChevron}>{glossaryExpanded ? '▲' : '▼'}</span>
+              </div>
+              {glossaryExpanded && (
+                <div style={s.glossaryBody}>
+                  <div style={s.glossaryNote}>
+                    These terms are enforced across every translation. Terms marked <strong>Keep As-Is</strong> stay in their original form (e.g. <em>Allah</em> never becomes <em>God</em>). Terms with a translation are forced to that exact rendering.
+                  </div>
+
+                  <div style={s.glossaryActions}>
+                    <button onClick={addGlossaryTerm} style={s.glossaryActionBtn}>+ Add Term</button>
+                    <button onClick={resetGlossary} style={s.glossaryActionBtn}>↺ Reset to Defaults</button>
+                    <button onClick={exportGlossary} style={s.glossaryActionBtn}>↓ Export JSON</button>
+                    <label style={{ ...s.glossaryActionBtn, cursor: 'pointer' }}>
+                      ↑ Import JSON
+                      <input type="file" accept=".json" onChange={importGlossary} style={{ display: 'none' }} />
+                    </label>
+                  </div>
+
+                  <div style={s.glossaryTable}>
+                    <div style={s.glossaryRowHeader}>
+                      <div style={s.glossaryColTerm}>Term</div>
+                      <div style={s.glossaryColTrans}>Translation / Rendering</div>
+                      <div style={s.glossaryColKeep}>Keep As-Is</div>
+                      <div style={s.glossaryColNotes}>Notes</div>
+                      <div style={s.glossaryColDel}></div>
+                    </div>
+                    {glossary.map((g, i) => (
+                      <div key={i} style={s.glossaryRow}>
+                        <input style={s.glossaryInput} value={g.term} placeholder="Allah" onChange={e => updateGlossaryTerm(i, 'term', e.target.value)} />
+                        <input style={s.glossaryInput} value={g.translation} placeholder="Allah" onChange={e => updateGlossaryTerm(i, 'translation', e.target.value)} />
+                        <label style={s.glossaryCheckLabel}>
+                          <input type="checkbox" checked={g.keepAsIs} onChange={e => updateGlossaryTerm(i, 'keepAsIs', e.target.checked)} style={s.glossaryCheck} />
+                          {g.keepAsIs ? 'Yes' : 'No'}
+                        </label>
+                        <input style={s.glossaryInput} value={g.notes || ''} placeholder="optional" onChange={e => updateGlossaryTerm(i, 'notes', e.target.value)} />
+                        <button onClick={() => removeGlossaryTerm(i)} style={s.glossaryDelBtn}>×</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={s.glossarySaved}>✓ Auto-saved to your browser. Use Export to share with team members.</div>
+                </div>
+              )}
             </div>
 
             {/* YouTube Config */}
@@ -310,7 +498,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Translate Button */}
             <div style={s.actionRow}>
               <button onClick={runTranslation}
                 disabled={!file || selectedLangs.length === 0 || stage === 'running'}
@@ -322,7 +509,6 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Progress */}
             {stage === 'running' && Object.keys(progress).length > 0 && (
               <div style={s.progressCard}>
                 <div style={s.progressTitle}>Translation in Progress</div>
@@ -342,7 +528,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Results */}
             {stage === 'done' && Object.keys(results).length > 0 && (
               <div style={s.resultsSection}>
                 <div style={s.resultsHeader}>
@@ -398,17 +583,14 @@ export default function Home() {
               </div>
             )}
 
-            {/* Stats */}
             <div style={s.statBar}>
-              {[['150,000', 'QAR annual saving'], ['~$0.15', 'per video translated'], ['12', 'languages supported'], ['∞', 'videos per month']].map(([num, label], i, arr) => (
-                <>
-                  <div key={num} style={s.stat}>
-                    <span style={s.statNum}>{num}</span>
-                    <span style={s.statLabel}>{label}</span>
-                  </div>
-                  {i < arr.length - 1 && <div key={`d${i}`} style={s.statDivider}>✦</div>}
-                </>
-              ))}
+              <div style={s.stat}><span style={s.statNum}>150,000</span><span style={s.statLabel}>QAR annual saving</span></div>
+              <div style={s.statDivider}>✦</div>
+              <div style={s.stat}><span style={s.statNum}>~$0.15</span><span style={s.statLabel}>per video translated</span></div>
+              <div style={s.statDivider}>✦</div>
+              <div style={s.stat}><span style={s.statNum}>12</span><span style={s.statLabel}>languages supported</span></div>
+              <div style={s.statDivider}>✦</div>
+              <div style={s.stat}><span style={s.statNum}>∞</span><span style={s.statLabel}>videos per month</span></div>
             </div>
           </main>
         )}
@@ -419,17 +601,18 @@ export default function Home() {
 
 function GuideTab() {
   const phases = [
-    { phase: 'PHASE 1', color: '#1A1A2E', title: 'Get your Arabic SRT from YouTube', steps: ['Log in to YouTube Studio (studio.youtube.com)', 'Click Subtitles in the left menu', 'Find and click your video', 'Click the three-dot menu (⋮) on the Arabic track', 'Select Download → .srt format', 'Save to your computer'] },
-    { phase: 'PHASE 2', color: '#2244AA', title: 'Configure YouTube Upload (first time only)', steps: ['Go to developers.google.com/oauthplayground', 'Find YouTube Data API v3 in the left panel', 'Check the youtube.force-ssl scope', 'Click Authorize APIs → sign in with BilAraby YouTube account', 'Click Exchange authorization code for tokens', 'Copy the Access token (starts with ya29...)', 'Paste your Video ID and token into the tool'] },
-    { phase: 'PHASE 3', color: '#1A7A5A', title: 'Translate with AI', steps: ['Drop your Arabic .srt file into the upload zone', 'Select all target languages', 'Click Run AI Translation', 'Watch Claude translate all languages simultaneously', 'Takes 30–90 seconds depending on video length'] },
-    { phase: 'PHASE 4', color: '#7A3A1A', title: 'Upload & Publish', steps: ['Click Upload All to YouTube', 'All tracks upload as Drafts — not visible to viewers yet', 'Go to YouTube Studio → Subtitles', 'Review each language track', 'Click Publish when satisfied'] },
+    { phase: 'PHASE 1', color: '#1A1A2E', title: 'Get your Arabic captions', steps: ['Option A — Paste a YouTube link in the tool to auto-fetch captions', 'Option B — Download SRT manually from YouTube Studio → Subtitles → ⋮ → .srt'] },
+    { phase: 'PHASE 2', color: '#7A3A1A', title: 'Customize your Brand Glossary', steps: ['Open the Brand Glossary section', 'Add brand terms (BilAraby, show names) — set Keep As-Is', 'Add Islamic terms (Allah, Quran) — set Keep As-Is', 'Export the glossary JSON to share with team members', 'Glossary auto-saves to browser between sessions'] },
+    { phase: 'PHASE 3', color: '#2244AA', title: 'Configure YouTube Upload (first time only)', steps: ['Go to developers.google.com/oauthplayground', 'Find YouTube Data API v3 → check youtube.force-ssl scope', 'Click Authorize APIs → sign in with BilAraby YouTube account', 'Click Exchange authorization code for tokens', 'Copy the Access token (starts with ya29...)', 'Paste your Video ID and token into the tool'] },
+    { phase: 'PHASE 4', color: '#1A7A5A', title: 'Translate & Upload', steps: ['Select target languages', 'Click Run AI Translation — Claude uses your glossary', 'Click Upload All to YouTube', 'All tracks upload as Drafts — invisible to viewers'] },
+    { phase: 'PHASE 5', color: '#7A1A5A', title: 'Review & Publish', steps: ['Go to YouTube Studio → Subtitles', 'Review each language track', 'Make corrections in the YouTube editor', 'Click Publish to go live'] },
   ];
   const tips = [
+    ['📖', 'Glossary is critical', 'Add every recurring term — show names, Islamic vocabulary, brand mentions. This is what separates BilAraby from generic translation.'],
+    ['🔗', 'YouTube link mode', 'Paste any YouTube URL in Source mode to auto-fetch Arabic captions. Skips the manual download step.'],
     ['⚡', 'Batch process', 'Run multiple videos back-to-back. Each takes 30–90 seconds.'],
     ['🔑', 'Token expired?', 'Get a fresh token from OAuth Playground if you get an auth error.'],
     ['✏', 'Edit before publish', 'Always review drafts — Claude is accurate but nuance may need a human touch.'],
-    ['📁', 'Keep your SRTs', 'Download and store all translated SRTs in a shared drive folder.'],
-    ['🌍', 'Priority languages', 'Start with English, French, Turkish — highest reach for BilAraby.'],
     ['💰', 'Cost tracking', 'Monitor API usage at console.anthropic.com (~$0.15/video).'],
   ];
   return (
@@ -437,7 +620,7 @@ function GuideTab() {
       <div style={g.hero}>
         <div style={g.heroLabel}>TEAM OPERATIONS GUIDE</div>
         <h1 style={g.heroTitle}>BilAraby Caption Studio</h1>
-        <p style={g.heroSub}>How to translate and publish Arabic subtitles across 12 languages using AI.</p>
+        <p style={g.heroSub}>Five phases to translate and publish Arabic subtitles across 12 languages with brand-consistent terminology.</p>
       </div>
       <div style={g.phases}>
         {phases.map((ph, pi) => (
@@ -487,8 +670,8 @@ const s = {
   hero: { textAlign: 'center', marginBottom: 48 },
   heroTitle: { fontSize: 'clamp(32px, 4.5vw, 56px)', fontWeight: 800, lineHeight: 1.1, margin: '0 0 18px', letterSpacing: -1 },
   heroAccent: { color: '#D4AF50' },
-  heroSub: { fontSize: 15, color: 'rgba(232,224,208,0.5)', maxWidth: 560, margin: '0 auto', lineHeight: 1.8 },
-  pipelineWrap: { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: 48, overflowX: 'auto', padding: '16px 0', gap: 0 },
+  heroSub: { fontSize: 15, color: 'rgba(232,224,208,0.5)', maxWidth: 580, margin: '0 auto', lineHeight: 1.8 },
+  pipelineWrap: { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: 48, overflowX: 'auto', padding: '16px 0' },
   pipelineItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, position: 'relative', flex: '0 0 auto' },
   pipelineItemYT: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, flex: '0 0 auto', marginLeft: 24, paddingLeft: 24, borderLeft: '1px solid rgba(212,175,80,0.2)' },
   pipelineNode: { width: 44, height: 44, borderRadius: '50%', border: '1px solid rgba(232,224,208,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: 'rgba(232,224,208,0.25)', transition: 'all 0.4s' },
@@ -500,7 +683,11 @@ const s = {
   pipelineConnectorActive: { background: 'rgba(212,175,80,0.35)' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 },
   card: { background: 'rgba(232,224,208,0.025)', border: '1px solid rgba(232,224,208,0.07)', borderRadius: 10, padding: 24 },
-  cardLabel: { fontSize: 9, letterSpacing: 3, fontWeight: 700, color: '#D4AF50', marginBottom: 18, textTransform: 'uppercase' },
+  cardLabelRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  cardLabel: { fontSize: 9, letterSpacing: 3, fontWeight: 700, color: '#D4AF50', textTransform: 'uppercase' },
+  modeToggle: { display: 'flex', gap: 2, background: 'rgba(232,224,208,0.04)', borderRadius: 5, padding: 3 },
+  modeBtn: { background: 'transparent', border: 'none', color: 'rgba(232,224,208,0.4)', fontSize: 10, fontWeight: 600, letterSpacing: 0.5, padding: '5px 10px', borderRadius: 3, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s' },
+  modeBtnActive: { background: 'rgba(212,175,80,0.15)', color: '#D4AF50' },
   dropzone: { border: '1px dashed rgba(232,224,208,0.15)', borderRadius: 8, padding: '36px 24px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.3s', minHeight: 155, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   dropzoneActive: { border: '1px dashed #D4AF50', background: 'rgba(212,175,80,0.04)' },
   dropzoneFilled: { border: '1px solid rgba(212,175,80,0.3)', background: 'rgba(212,175,80,0.03)' },
@@ -513,6 +700,11 @@ const s = {
   fileName: { fontSize: 13, fontWeight: 700, color: '#e8e0d0' },
   fileSize: { fontSize: 11, color: 'rgba(232,224,208,0.4)' },
   fileChange: { fontSize: 10, color: 'rgba(212,175,80,0.4)', letterSpacing: 1 },
+  ytFetchBox: { display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 0' },
+  ytUrlInput: { background: 'rgba(232,224,208,0.04)', border: '1px solid rgba(232,224,208,0.1)', borderRadius: 6, padding: '12px 14px', color: '#e8e0d0', fontSize: 13, fontFamily: 'inherit' },
+  ytFetchBtn: { background: 'linear-gradient(135deg, #ff4444 0%, #cc0000 100%)', border: 'none', borderRadius: 6, padding: '12px 20px', fontSize: 12, fontWeight: 700, letterSpacing: 1, color: '#fff', cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.3s', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  ytFetchSuccess: { fontSize: 11, color: '#50D4A0', padding: '8px 12px', background: 'rgba(80,212,160,0.06)', borderRadius: 5 },
+  ytFetchNote: { fontSize: 10, color: 'rgba(232,224,208,0.35)', lineHeight: 1.6 },
   error: { marginTop: 10, fontSize: 12, color: '#ff6b6b', textAlign: 'center' },
   langGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 7 },
   langBtn: { background: 'rgba(232,224,208,0.03)', border: '1px solid rgba(232,224,208,0.08)', borderRadius: 6, padding: '10px 6px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, transition: 'all 0.2s', position: 'relative' },
@@ -521,6 +713,26 @@ const s = {
   langName: { fontSize: 9, color: 'rgba(232,224,208,0.55)', letterSpacing: 0.5, textAlign: 'center' },
   langCheck: { position: 'absolute', top: 4, right: 4, fontSize: 8, color: '#D4AF50', fontWeight: 700 },
   langCount: { marginTop: 12, fontSize: 10, color: 'rgba(212,175,80,0.5)', letterSpacing: 1, textAlign: 'right' },
+
+  glossaryCard: { background: 'rgba(232,224,208,0.025)', border: '1px solid rgba(232,224,208,0.07)', borderRadius: 10, marginBottom: 16, overflow: 'hidden' },
+  glossaryHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', cursor: 'pointer', userSelect: 'none' },
+  glossaryTitle: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 10, fontWeight: 700, letterSpacing: 3, color: '#D4AF50', textTransform: 'uppercase' },
+  glossaryIcon: { fontSize: 14 },
+  glossaryCount: { fontSize: 9, color: 'rgba(232,224,208,0.4)', fontWeight: 400, letterSpacing: 1 },
+  glossaryBody: { padding: '0 24px 24px', borderTop: '1px solid rgba(232,224,208,0.05)' },
+  glossaryNote: { background: 'rgba(212,175,80,0.04)', border: '1px solid rgba(212,175,80,0.12)', borderRadius: 6, padding: 14, fontSize: 12, color: 'rgba(232,224,208,0.65)', lineHeight: 1.7, margin: '16px 0' },
+  glossaryActions: { display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' },
+  glossaryActionBtn: { background: 'rgba(232,224,208,0.04)', border: '1px solid rgba(232,224,208,0.1)', borderRadius: 5, padding: '7px 12px', fontSize: 11, color: 'rgba(232,224,208,0.7)', cursor: 'pointer', fontWeight: 600, letterSpacing: 0.5, fontFamily: 'inherit' },
+  glossaryTable: { background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 6 },
+  glossaryRowHeader: { display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.8fr 1.6fr 0.3fr', gap: 6, padding: '8px 6px', fontSize: 9, color: 'rgba(212,175,80,0.6)', letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 700 },
+  glossaryRow: { display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.8fr 1.6fr 0.3fr', gap: 6, padding: 4, alignItems: 'center' },
+  glossaryColTerm: {}, glossaryColTrans: {}, glossaryColKeep: {}, glossaryColNotes: {}, glossaryColDel: {},
+  glossaryInput: { background: 'rgba(232,224,208,0.03)', border: '1px solid rgba(232,224,208,0.08)', borderRadius: 4, padding: '7px 10px', color: '#e8e0d0', fontSize: 12, fontFamily: 'inherit', width: '100%' },
+  glossaryCheckLabel: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'rgba(232,224,208,0.6)', cursor: 'pointer' },
+  glossaryCheck: { accentColor: '#D4AF50', cursor: 'pointer' },
+  glossaryDelBtn: { background: 'transparent', border: 'none', color: 'rgba(255,107,107,0.5)', fontSize: 18, cursor: 'pointer', padding: 4 },
+  glossarySaved: { marginTop: 14, fontSize: 11, color: 'rgba(80,212,160,0.7)', letterSpacing: 0.5 },
+
   ytConfigCard: { background: 'rgba(232,224,208,0.025)', border: '1px solid rgba(232,224,208,0.07)', borderRadius: 10, marginBottom: 16, overflow: 'hidden' },
   ytConfigHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', cursor: 'pointer', userSelect: 'none' },
   ytConfigTitle: { display: 'flex', alignItems: 'center', gap: 10, fontSize: 10, fontWeight: 700, letterSpacing: 3, color: '#D4AF50', textTransform: 'uppercase' },
@@ -542,6 +754,7 @@ const s = {
   ytLabel: { fontSize: 10, letterSpacing: 2, color: 'rgba(232,224,208,0.4)', textTransform: 'uppercase' },
   ytInput: { background: 'rgba(232,224,208,0.04)', border: '1px solid rgba(232,224,208,0.1)', borderRadius: 6, padding: '10px 14px', color: '#e8e0d0', fontSize: 13, fontFamily: 'inherit' },
   ytReady: { marginTop: 12, fontSize: 11, color: '#50D4A0' },
+
   actionRow: { display: 'flex', justifyContent: 'center', marginBottom: 20 },
   translateBtn: { background: 'linear-gradient(135deg, #D4AF50 0%, #b8923a 100%)', border: 'none', borderRadius: 6, padding: '15px 44px', fontSize: 13, fontWeight: 700, letterSpacing: 2, color: '#06060a', cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.3s', boxShadow: '0 4px 24px rgba(212,175,80,0.2)' },
   translateBtnDisabled: { opacity: 0.25, cursor: 'not-allowed' },
