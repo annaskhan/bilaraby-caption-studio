@@ -671,7 +671,7 @@ export default function Home() {
             <div style={s.glossaryCard}>
               <div style={s.glossaryHeader} onClick={() => setGlossaryExpanded(!glossaryExpanded)}>
                 <div style={s.glossaryTitle}>
-                  <span style={s.cardLabel}>02.5 — Brand Glossary</span>
+                  <span style={s.cardLabel}>03 — Brand Glossary</span>
                   <span style={s.glossaryCount}>{activeGlossaryCount} terms enforced</span>
                 </div>
                 <span style={s.chevron}>{glossaryExpanded ? '▲' : '▼'}</span>
@@ -716,7 +716,7 @@ export default function Home() {
             <div style={s.ytConfigCard}>
               <div style={s.ytConfigHeader} onClick={() => setYtExpanded(!ytExpanded)}>
                 <div style={s.glossaryTitle}>
-                  <span style={s.cardLabel}>03 — YouTube Direct Upload</span>
+                  <span style={s.cardLabel}>04 — YouTube Direct Upload</span>
                   <span style={s.glossaryCount}>
                     {ytConfigured === null ? 'checking...' : ytConfigured ? '✓ ready · uploads as drafts' : '⚠ admin setup required'}
                   </span>
