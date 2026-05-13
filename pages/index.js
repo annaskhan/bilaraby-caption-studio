@@ -1324,7 +1324,7 @@ function AdminTab({ allUserStats, aggregate, formatNum, formatRelativeTime }) {
         </div>
         <div style={a.aggCard}>
           <div style={s.cardLabel}>Tool Health</div>
-          <div style={a.aggNum} className="agg-num" style={{ color: '#0B6A62', fontSize: 28, lineHeight: 1.2 }}>● Operational</div>
+          <div style={{ ...a.aggNum, color: '#0B6A62', fontSize: 28, lineHeight: 1.2 }} className="agg-num">● Operational</div>
           <div style={a.aggSub}>all systems active</div>
         </div>
       </div>
@@ -1380,8 +1380,8 @@ function AdminTab({ allUserStats, aggregate, formatNum, formatRelativeTime }) {
 function GuideTab() {
   const phases = [
     { phase: 'Phase 1', color: '#1B180F', title: 'Get the Arabic SRT', steps: ['Use YouTube Link mode and paste any BilAraby video URL', 'Or, manually download from YouTube Studio → Subtitles → ⋮ → .srt'] },
-    { phase: 'Phase 2', color: '#CD891C', title: 'Customise the Brand Glossary', steps: ['Open the Brand Glossary section', 'Add brand and Islamic terms — set Keep As-Is', 'Export the glossary JSON to share with the team', 'Glossary auto-saves to your browser'] },
-    { phase: 'Phase 3', color: '#0B6A62', title: 'Translate', steps: ['Select your target languages', 'Click Run AI Translation — Claude uses your glossary', 'Wait 30–90 seconds for all languages to complete'] },
+    { phase: 'Phase 2', color: '#0B6A62', title: 'Customise the Brand Glossary', steps: ['Open the Brand Glossary section', 'Add brand and Islamic terms — set Keep As-Is', 'Export the glossary JSON to share with the team', 'Glossary auto-saves to your browser'] },
+    { phase: 'Phase 3', color: '#CD891C', title: 'Translate', steps: ['Select your target languages', 'Click Run AI Translation — Claude uses your glossary', 'Wait 30–90 seconds for all languages to complete'] },
     { phase: 'Phase 4', color: '#104F84', title: 'Upload', steps: ['Paste the YouTube Video ID', 'Click Upload All to YouTube', 'All tracks upload as Drafts — invisible to viewers'] },
     { phase: 'Phase 5', color: '#734663', title: 'Review & Publish', steps: ['Go to YouTube Studio → Subtitles', 'Review each language track', 'Make corrections in the YouTube editor', 'Click Publish to go live'] },
   ];
@@ -1432,13 +1432,13 @@ function GuideTab() {
 // ============================================================================
 // STYLES
 // ============================================================================
-// Brand accents stay fixed across themes
-const GOLD = '#CD891C';
-const TEAL = '#0B6A62';
-const PURPLE = '#734663';
-const BLUE = '#104F84';
-const RED = '#D64E3E';
-const BORDER_GOLD = 'rgba(205, 137, 28, 0.4)';
+// BilAraby primary accent — teal-green from toolkit, matches website
+const GOLD = '#0B6A62';      // PRIMARY (was gold #CD891C — now green to match website)
+const TEAL = '#0B6A62';      // SUCCESS — same green
+const PURPLE = '#734663';    // SECONDARY accent (Word doc downloads)
+const BLUE = '#104F84';      // YouTube actions
+const RED = '#D64E3E';       // YouTube fetch + errors + live indicator
+const BORDER_GOLD = 'rgba(11, 106, 98, 0.4)';
 
 // Surfaces use CSS variables — switch automatically with dark/light theme
 const DARK = 'var(--bg-header)';
@@ -1486,7 +1486,7 @@ const s = {
   tabBtnActive: { background: GOLD, color: DARK },
   userChip: { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px 6px 16px', background: 'rgba(249, 247, 234, 0.06)', border: `1px solid rgba(249, 247, 234, 0.12)`, borderRadius: 4 },
   userChipName: { fontSize: 13, fontWeight: 600, color: ON_DARK, letterSpacing: 0.5 },
-  userChipAdmin: { fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: GOLD, background: 'rgba(205, 137, 28, 0.15)', padding: '3px 7px', borderRadius: 2 },
+  userChipAdmin: { fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: GOLD, background: 'rgba(11, 106, 98, 0.15)', padding: '3px 7px', borderRadius: 2 },
   userChipLogout: { background: 'transparent', border: 'none', color: 'rgba(249, 247, 234, 0.55)', fontSize: 16, cursor: 'pointer', padding: '4px 8px', borderRadius: 3, fontFamily: 'inherit', transition: 'all 0.2s' },
 
   // Header icon toggles (sound, theme)
@@ -1501,7 +1501,7 @@ const s = {
 
   // Progress timer
   progressCardHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  progressTimer: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'rgba(205, 137, 28, 0.1)', border: `1px solid ${BORDER_GOLD}`, borderRadius: 4 },
+  progressTimer: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'rgba(11, 106, 98, 0.1)', border: `1px solid ${BORDER_GOLD}`, borderRadius: 4 },
   progressTimerLabel: { fontSize: 9, letterSpacing: 1.5, color: TEXT_MUTED, textTransform: 'uppercase', fontWeight: 700 },
   progressTimerValue: { fontSize: 13, fontWeight: 800, color: GOLD, fontVariantNumeric: 'tabular-nums', letterSpacing: 0.5 },
 
@@ -1546,8 +1546,8 @@ const s = {
 
   // Dropzone (taller)
   dropzone: { border: `1.5px dashed ${BORDER_STRONG}`, borderRadius: 4, padding: '52px 28px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.3s', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: CREAM_2 },
-  dropzoneActive: { border: `1.5px dashed ${GOLD}`, background: 'rgba(205, 137, 28, 0.06)' },
-  dropzoneFilled: { border: `1.5px solid ${GOLD}`, background: 'rgba(205, 137, 28, 0.04)' },
+  dropzoneActive: { border: `1.5px dashed ${GOLD}`, background: 'rgba(11, 106, 98, 0.06)' },
+  dropzoneFilled: { border: `1.5px solid ${GOLD}`, background: 'rgba(11, 106, 98, 0.04)' },
   dropContent: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 },
   dropIconLg: { fontSize: 36, color: TEXT_SOFT, fontWeight: 300 },
   dropText: { fontSize: 16, color: TEXT_MUTED, fontWeight: 500 },
@@ -1569,7 +1569,7 @@ const s = {
   // Languages (larger)
   langGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 },
   langBtn: { background: CREAM_2, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '14px 8px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 0.2s', position: 'relative', fontFamily: 'inherit' },
-  langBtnActive: { background: 'rgba(205, 137, 28, 0.1)', border: `1.5px solid ${GOLD}` },
+  langBtnActive: { background: 'rgba(11, 106, 98, 0.1)', border: `1.5px solid ${GOLD}` },
   langFlag: { fontSize: 22 },
   langName: { fontSize: 11, color: TEXT_MUTED, letterSpacing: 0.3, textAlign: 'center', fontWeight: 500 },
   langCheck: { position: 'absolute', top: 5, right: 7, fontSize: 10, color: GOLD, fontWeight: 800 },
@@ -1601,7 +1601,7 @@ const s = {
   ytInfoBox: { background: CREAM_2, border: `1px solid ${BORDER}`, borderLeft: `3px solid ${GOLD}`, borderRadius: 2, padding: 22, margin: '20px 0' },
   ytInfoTitle: { fontSize: 12, fontWeight: 800, color: GOLD, letterSpacing: 1.5, marginBottom: 12, textTransform: 'uppercase' },
   ytStepText: { fontSize: 14, color: TEXT_MUTED, lineHeight: 1.7 },
-  code: { background: 'rgba(205, 137, 28, 0.12)', padding: '2px 6px', borderRadius: 2, fontSize: 12, fontFamily: 'monospace', color: DARK, fontWeight: 600 },
+  code: { background: 'rgba(11, 106, 98, 0.12)', padding: '2px 6px', borderRadius: 2, fontSize: 12, fontFamily: 'monospace', color: DARK, fontWeight: 600 },
   ytFields: { display: 'grid', gridTemplateColumns: '1fr', gap: 14 },
   ytField: { display: 'flex', flexDirection: 'column', gap: 8 },
   ytLabel: { fontSize: 11, letterSpacing: 1.5, color: TEXT_MUTED, textTransform: 'uppercase', fontWeight: 700 },
@@ -1691,7 +1691,7 @@ const a = {
   tableWrap: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden', marginBottom: 32, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   tableHeader: { display: 'flex', alignItems: 'center', padding: '16px 24px', background: CREAM_2, fontSize: 10, letterSpacing: 2, color: GOLD, textTransform: 'uppercase', fontWeight: 800, gap: 12, borderBottom: `1px solid ${BORDER}` },
   tableRow: { display: 'flex', alignItems: 'center', padding: '18px 24px', borderBottom: `1px solid ${BORDER}`, gap: 12, transition: 'background 0.2s' },
-  tableRowTop: { background: 'rgba(205, 137, 28, 0.04)' },
+  tableRowTop: { background: 'rgba(11, 106, 98, 0.04)' },
   userBadge: { background: DARK, color: GOLD, fontSize: 10, fontWeight: 800, letterSpacing: 1.5, padding: '6px 9px', borderRadius: 3, fontFamily: 'monospace' },
   userName: { fontSize: 14, fontWeight: 600, color: TEXT },
   topBadge: { fontSize: 10, color: GOLD, fontWeight: 700, letterSpacing: 1, marginTop: 2 },
