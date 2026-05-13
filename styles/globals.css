@@ -108,6 +108,16 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
   box-shadow: var(--shadow-elevated);
 }
 
+.recent-card:hover {
+  border-color: var(--bilaraby-gold) !important;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated);
+}
+
+.recent-card:active {
+  transform: translateY(0);
+}
+
 /* Animations */
 @keyframes spin {
   from { transform: rotate(0deg); }

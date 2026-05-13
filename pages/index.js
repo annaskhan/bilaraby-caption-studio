@@ -183,7 +183,14 @@ export default function Home() {
 
   // Translation timer
   const [elapsed, setElapsed] = useState(0);
+  const [estimatedTotal, setEstimatedTotal] = useState(0);
   const timerRef = useRef(null);
+
+  // Performance benchmarks for ETA (per-segment-per-language average in ms)
+  const [avgMsPerUnit, setAvgMsPerUnit] = useState(450); // sensible default
+
+  // Recently translated jobs
+  const [recentJobs, setRecentJobs] = useState([]);
 
   // Sound notification preference
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -192,6 +199,8 @@ export default function Home() {
   const [file, setFile]                   = useState(null);
   const [srtContent, setSrtContent]       = useState('');
   const [selectedLangs, setSelectedLangs] = useState(['en', 'fr', 'es']);
+  const [langOrder, setLangOrder] = useState(LANGUAGES.map(l => l.code));
+  const [draggedLang, setDraggedLang] = useState(null);
   const [stage, setStage]                 = useState('idle');
   const [activeStageIndex, setActiveStageIndex] = useState(-1);
   const [results, setResults]             = useState({});
@@ -261,6 +270,36 @@ export default function Home() {
     if (typeof window === 'undefined' || !sessionLoaded) return;
     localStorage.setItem('bilaraby_sound', String(soundEnabled));
   }, [soundEnabled, sessionLoaded]);
+
+  // Load and persist performance benchmark for ETA
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('bilaraby_avg_ms');
+    if (saved) {
+      const n = parseFloat(saved);
+      if (!isNaN(n) && n > 0) setAvgMsPerUnit(n);
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !sessionLoaded) return;
+    localStorage.setItem('bilaraby_avg_ms', String(avgMsPerUnit));
+  }, [avgMsPerUnit, sessionLoaded]);
+
+  // Load recent jobs per user
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user) return;
+    const saved = localStorage.getItem(`bilaraby_recent_${user.code}`);
+    if (saved) {
+      try { setRecentJobs(JSON.parse(saved)); } catch { setRecentJobs([]); }
+    } else {
+      setRecentJobs([]);
+    }
+  }, [user]);
+  // Persist recent jobs
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user || !sessionLoaded) return;
+    localStorage.setItem(`bilaraby_recent_${user.code}`, JSON.stringify(recentJobs));
+  }, [recentJobs, user, sessionLoaded]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -396,6 +435,55 @@ export default function Home() {
   const onDrop = (e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); };
   const toggleLang = (code) => setSelectedLangs(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
 
+  const toggleAllLangs = () => {
+    if (selectedLangs.length === LANGUAGES.length) {
+      setSelectedLangs([]);
+    } else {
+      setSelectedLangs(LANGUAGES.map(l => l.code));
+    }
+  };
+
+  // Drag-and-drop language reordering
+  const handleLangDragStart = (e, code) => {
+    setDraggedLang(code);
+    e.dataTransfer.effectAllowed = 'move';
+    // For Firefox compatibility
+    try { e.dataTransfer.setData('text/plain', code); } catch {}
+  };
+  const handleLangDragOver = (e, code) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!draggedLang || draggedLang === code) return;
+    setLangOrder(prev => {
+      const next = [...prev];
+      const fromIdx = next.indexOf(draggedLang);
+      const toIdx = next.indexOf(code);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, draggedLang);
+      return next;
+    });
+  };
+  const handleLangDragEnd = () => setDraggedLang(null);
+
+  // Persist language order across sessions
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('bilaraby_lang_order');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === LANGUAGES.length) {
+          setLangOrder(parsed);
+        }
+      } catch {}
+    }
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !sessionLoaded) return;
+    localStorage.setItem('bilaraby_lang_order', JSON.stringify(langOrder));
+  }, [langOrder, sessionLoaded]);
+
   const fetchFromYouTube = async () => {
     if (!ytFetchUrl.trim()) { setError('Please enter a YouTube URL or video ID'); return; }
     setError(''); setYtFetching(true); setResults({}); setStage('idle'); setActiveStageIndex(-1);
@@ -416,6 +504,12 @@ export default function Home() {
     if (!srtContent || selectedLangs.length === 0) return;
     setError(''); setResults({}); setStage('running'); setProgress({}); setUploadStatus({});
 
+    // Calculate estimated total based on segments × languages × historical avg
+    const initialBlocks = parseSRT(srtContent);
+    const workUnits = initialBlocks.length * selectedLangs.length;
+    const estimateSeconds = Math.max(15, Math.round((workUnits * avgMsPerUnit) / 1000));
+    setEstimatedTotal(estimateSeconds);
+
     // Start elapsed timer
     setElapsed(0);
     const startTime = Date.now();
@@ -427,7 +521,7 @@ export default function Home() {
     try {
       setActiveStageIndex(0); await sleep(400);
       setActiveStageIndex(1);
-      const blocks = parseSRT(srtContent);
+      const blocks = initialBlocks;
       await sleep(600);
       setActiveStageIndex(2);
 
@@ -454,19 +548,25 @@ export default function Home() {
       setActiveStageIndex(4);
       setStage('done');
 
-      // Stop timer
+      // Stop timer + update rolling benchmark
+      const finalElapsedMs = Date.now() - startTime;
+      const successfulLangs = Object.keys(newResults).length;
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      if (successfulLangs > 0 && blocks.length > 0) {
+        const observedMsPerUnit = finalElapsedMs / (blocks.length * successfulLangs);
+        // Rolling average: weighted 70% old, 30% new (smooth but adaptive)
+        setAvgMsPerUnit(prev => Math.round(prev * 0.7 + observedMsPerUnit * 0.3));
+      }
 
       // Play completion sound + browser notification
       playCompletionSound();
-      maybeNotify(`Translation complete — ${Object.keys(newResults).length} languages ready`);
+      maybeNotify(`Translation complete — ${successfulLangs} languages ready`);
 
       // Auto-scroll to results when complete
       setTimeout(() => {
         document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 600);
 
-      const successfulLangs = Object.keys(newResults).length;
       if (successfulLangs > 0) {
         const segmentCount = blocks.length;
         const now = new Date().toISOString();
@@ -478,6 +578,19 @@ export default function Home() {
           lastUsed: now,
           firstUsed: prev.firstUsed || now,
         }));
+
+        // Save to recent jobs (max 5, newest first)
+        const job = {
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          filename: file?.name || 'untitled.srt',
+          videoId: videoId || '',
+          srtContent,
+          results: newResults,
+          languages: Object.keys(newResults),
+          segmentCount,
+          completedAt: now,
+        };
+        setRecentJobs(prev => [job, ...prev].slice(0, 5));
       }
       if (videoId && ytConfigured) setYtExpanded(true);
     } catch (e) {
@@ -650,6 +763,29 @@ export default function Home() {
     setReuploadFile(null);
     setReuploadStatus(null);
     setReuploadResult(null);
+  };
+
+  // Reopen a recent job — restores SRT, results, file metadata
+  const reopenRecentJob = (job) => {
+    setSrtContent(job.srtContent);
+    setFile({ name: job.filename, size: job.srtContent.length });
+    setResults(job.results);
+    setSelectedLangs(job.languages);
+    setVideoId(job.videoId || '');
+    setStage('done');
+    setActiveStageIndex(4);
+    setError('');
+    setUploadStatus({});
+    setTimeout(() => {
+      document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
+  };
+
+  // Clear all recent jobs
+  const clearRecentJobs = () => {
+    if (confirm('Clear your recent translations history? Past work won\'t be removed from YouTube — just from this list.')) {
+      setRecentJobs([]);
+    }
   };
 
 
@@ -908,18 +1044,43 @@ export default function Home() {
 
               {/* Languages */}
               <div style={s.card}>
-                <div style={s.cardLabel}>02 — Target Languages</div>
-                <div style={s.langGrid} className="lang-grid-mobile">
-                  {LANGUAGES.map(lang => (
-                    <button key={lang.code} onClick={() => toggleLang(lang.code)}
-                      style={{ ...s.langBtn, ...(selectedLangs.includes(lang.code) ? s.langBtnActive : {}) }} className="lang-btn">
-                      <span style={s.langFlag}>{lang.flag}</span>
-                      <span style={s.langName}>{lang.label}</span>
-                      {selectedLangs.includes(lang.code) && <span style={s.langCheck}>✓</span>}
-                    </button>
-                  ))}
+                <div style={s.cardLabelRow}>
+                  <div style={s.cardLabel}>02 — Target Languages</div>
+                  <button onClick={toggleAllLangs} style={s.bulkSelectBtn}>
+                    {selectedLangs.length === LANGUAGES.length ? '✕ Clear All' : '✓ Select All'}
+                  </button>
                 </div>
-                <div style={s.langCount}>{selectedLangs.length} language{selectedLangs.length !== 1 ? 's' : ''} selected</div>
+                <div style={s.langGrid} className="lang-grid-mobile">
+                  {langOrder.map(code => {
+                    const lang = LANGUAGES.find(l => l.code === code);
+                    if (!lang) return null;
+                    const isSelected = selectedLangs.includes(code);
+                    const isDragging = draggedLang === code;
+                    return (
+                      <button key={code} onClick={() => toggleLang(code)}
+                        draggable
+                        onDragStart={(e) => handleLangDragStart(e, code)}
+                        onDragOver={(e) => handleLangDragOver(e, code)}
+                        onDragEnd={handleLangDragEnd}
+                        style={{
+                          ...s.langBtn,
+                          ...(isSelected ? s.langBtnActive : {}),
+                          ...(isDragging ? s.langBtnDragging : {}),
+                        }}
+                        className="lang-btn"
+                        title="Drag to reorder">
+                        <span style={s.langDragHandle}>⋮⋮</span>
+                        <span style={s.langFlag}>{lang.flag}</span>
+                        <span style={s.langName}>{lang.label}</span>
+                        {isSelected && <span style={s.langCheck}>✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={s.langCountRow}>
+                  <span style={s.langHint}>Drag to reorder • Click to toggle</span>
+                  <span style={s.langCount}>{selectedLangs.length} of {LANGUAGES.length} selected</span>
+                </div>
               </div>
             </div>
 
@@ -1107,7 +1268,7 @@ export default function Home() {
                 style={{ ...s.translateBtn, ...(!file || selectedLangs.length === 0 ? s.translateBtnDisabled : {}), ...(stage === 'running' ? s.translateBtnRunning : {}) }}
                 className="translate-btn">
                 {stage === 'running'
-                  ? <span style={s.btnInner}><span className="spinner">◈</span>&nbsp;&nbsp; Translating with Claude  ·  {formatElapsed(elapsed)}</span>
+                  ? <span style={s.btnInner}><span className="spinner">◈</span>&nbsp;&nbsp; Translating  ·  {formatElapsed(elapsed)} elapsed{estimatedTotal > 0 && elapsed < estimatedTotal ? `  ·  ~${formatElapsed(estimatedTotal - elapsed)} remaining` : ''}</span>
                   : <span style={s.btnInner}><span className="brand-diamond" />&nbsp;&nbsp; Run AI Translation</span>}
               </button>
             </div>
@@ -1117,11 +1278,24 @@ export default function Home() {
               <div style={s.progressCard}>
                 <div style={s.progressCardHeader}>
                   <div style={s.cardLabel}>Translation in Progress</div>
-                  <div style={s.progressTimer}>
-                    <span style={s.progressTimerLabel}>Elapsed</span>
-                    <span style={s.progressTimerValue}>{formatElapsed(elapsed)}</span>
+                  <div style={s.progressTimerGroup}>
+                    <div style={s.progressTimer}>
+                      <span style={s.progressTimerLabel}>Elapsed</span>
+                      <span style={s.progressTimerValue}>{formatElapsed(elapsed)}</span>
+                    </div>
+                    {estimatedTotal > 0 && (
+                      <div style={{ ...s.progressTimer, ...s.progressEta }}>
+                        <span style={s.progressTimerLabel}>{elapsed < estimatedTotal ? 'Remaining' : 'Wrapping up'}</span>
+                        <span style={s.progressTimerValue}>{elapsed < estimatedTotal ? `~${formatElapsed(estimatedTotal - elapsed)}` : '...'}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
+                {estimatedTotal > 0 && (
+                  <div style={s.progressBarTrack}>
+                    <div style={{ ...s.progressBarFill, width: `${Math.min(100, (elapsed / estimatedTotal) * 100)}%` }} />
+                  </div>
+                )}
                 <div style={s.progressGrid}>
                   {selectedLangs.map(code => {
                     const lang = LANGUAGES.find(l => l.code === code);
@@ -1193,6 +1367,40 @@ export default function Home() {
                 {Object.values(uploadStatus).some(v => v === 'done') && (
                   <div style={s.ytSuccessBar}>✓ &nbsp;Caption tracks uploaded as drafts. Review and publish in <strong>YouTube Studio → Subtitles</strong>.</div>
                 )}
+              </div>
+            )}
+
+            {/* Recently Translated */}
+            {recentJobs.length > 0 && (
+              <div style={s.recentSection}>
+                <div style={s.recentHeader}>
+                  <div style={s.recentTitle}>
+                    <span style={s.cardLabel}>Recently Translated</span>
+                    <span style={s.recentSubtitle}>Your last {recentJobs.length} job{recentJobs.length !== 1 ? 's' : ''} · click to reopen</span>
+                  </div>
+                  <button onClick={clearRecentJobs} style={s.dashReset}>Clear</button>
+                </div>
+                <div style={s.recentList}>
+                  {recentJobs.map((job) => (
+                    <button key={job.id} onClick={() => reopenRecentJob(job)} style={s.recentCard} className="recent-card">
+                      <div style={s.recentCardTop}>
+                        <span style={s.recentCardIcon}><span className="brand-diamond" /></span>
+                        <div style={s.recentCardName} title={job.filename}>{job.filename}</div>
+                      </div>
+                      <div style={s.recentCardLangs}>
+                        {job.languages.slice(0, 6).map(code => {
+                          const l = LANGUAGES.find(x => x.code === code);
+                          return l ? <span key={code} title={l.label}>{l.flag}</span> : null;
+                        })}
+                        {job.languages.length > 6 && <span style={s.recentCardMore}>+{job.languages.length - 6}</span>}
+                      </div>
+                      <div style={s.recentCardMeta}>
+                        <span>{job.segmentCount} seg · {job.languages.length} lang</span>
+                        <span style={s.recentCardTime}>{formatRelativeTime(job.completedAt)}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -1502,6 +1710,10 @@ const s = {
   // Progress timer
   progressCardHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   progressTimer: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'rgba(15, 122, 77, 0.1)', border: `1px solid ${BORDER_GOLD}`, borderRadius: 4 },
+  progressTimerGroup: { display: 'flex', gap: 8, flexWrap: 'wrap' },
+  progressEta: { background: 'rgba(15, 122, 77, 0.04)', borderStyle: 'dashed' },
+  progressBarTrack: { width: '100%', height: 4, background: 'rgba(15, 122, 77, 0.1)', borderRadius: 2, overflow: 'hidden', marginBottom: 16, marginTop: -4 },
+  progressBarFill: { height: '100%', background: GOLD, borderRadius: 2, transition: 'width 1s linear', boxShadow: `0 0 8px ${GOLD}` },
   progressTimerLabel: { fontSize: 9, letterSpacing: 1.5, color: TEXT_MUTED, textTransform: 'uppercase', fontWeight: 700 },
   progressTimerValue: { fontSize: 13, fontWeight: 800, color: GOLD, fontVariantNumeric: 'tabular-nums', letterSpacing: 0.5 },
 
@@ -1573,7 +1785,12 @@ const s = {
   langFlag: { fontSize: 22 },
   langName: { fontSize: 11, color: TEXT_MUTED, letterSpacing: 0.3, textAlign: 'center', fontWeight: 500 },
   langCheck: { position: 'absolute', top: 5, right: 7, fontSize: 10, color: GOLD, fontWeight: 800 },
-  langCount: { marginTop: 16, fontSize: 12, color: GOLD, letterSpacing: 1, textAlign: 'right', fontWeight: 600 },
+  langCount: { fontSize: 12, color: GOLD, letterSpacing: 1, fontWeight: 600 },
+  langCountRow: { marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
+  langHint: { fontSize: 11, color: TEXT_SOFT, letterSpacing: 0.5, fontStyle: 'italic' },
+  bulkSelectBtn: { background: CARD_BG, border: `1px solid ${BORDER}`, color: GOLD, fontSize: 11, fontWeight: 700, letterSpacing: 1, padding: '7px 13px', borderRadius: 3, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s', fontFamily: 'inherit' },
+  langDragHandle: { position: 'absolute', top: 4, left: 5, fontSize: 9, color: TEXT_SOFT, letterSpacing: -2, opacity: 0.5, transform: 'rotate(90deg)', pointerEvents: 'none' },
+  langBtnDragging: { opacity: 0.4, transform: 'scale(0.95)' },
 
   // Glossary
   glossaryCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, marginBottom: 20, overflow: 'hidden', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
@@ -1655,6 +1872,21 @@ const s = {
 
   // Activity Dashboard (larger)
   dashSection: { marginTop: 72, padding: '40px 0 0', borderTop: `1px solid ${BORDER}` },
+
+  // Recently Translated section
+  recentSection: { marginTop: 56, padding: '36px 0 0', borderTop: `1px solid ${BORDER}` },
+  recentHeader: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 14 },
+  recentTitle: { display: 'flex', flexDirection: 'column', gap: 6 },
+  recentSubtitle: { fontSize: 12, color: TEXT_SOFT, fontWeight: 500, letterSpacing: 0.3 },
+  recentList: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 },
+  recentCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: 18, cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 10, fontFamily: 'inherit', boxShadow: '0 1px 3px rgba(14, 20, 17, 0.04)' },
+  recentCardTop: { display: 'flex', alignItems: 'center', gap: 10 },
+  recentCardIcon: { fontSize: 14, flexShrink: 0 },
+  recentCardName: { fontSize: 13, fontWeight: 700, color: TEXT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 },
+  recentCardLangs: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 16, flexWrap: 'wrap' },
+  recentCardMore: { fontSize: 11, color: TEXT_SOFT, fontWeight: 600, padding: '2px 6px', background: CREAM_2, borderRadius: 2 },
+  recentCardMeta: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: TEXT_SOFT, paddingTop: 10, borderTop: `1px solid ${BORDER}`, fontWeight: 500 },
+  recentCardTime: { color: GOLD, fontWeight: 600 },
   dashHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 14 },
   dashTitle: { display: 'flex', alignItems: 'center', gap: 16 },
   dashLive: { display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 10, fontWeight: 800, letterSpacing: 2.5, color: RED, background: 'rgba(214, 78, 62, 0.08)', border: `1px solid rgba(214, 78, 62, 0.3)`, padding: '5px 11px', borderRadius: 2, textTransform: 'uppercase' },
