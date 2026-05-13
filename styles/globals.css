@@ -1,20 +1,12 @@
-/* BilAraby Brand System
-   Primary palette from BilAraby Toolkit
-   Dark:   #1B180F (warm black)
-   Cream:  #F9F7EA (off-white)
-   Gold:   #CD891C (mustard)
-   Purple: #734663
-   Teal:   #0B6A62
-   Blue:   #104F84
-   Red:    #D64E3E
-   Fonts:  Chivo (Latin) + Al Marai (Arabic) */
+/* BilAraby Brand System with Dark Mode + Mobile + Print
+   Light: cream/dark/gold (toolkit default)
+   Dark:  inverted cream/dark roles, gold stays as accent */
 
 @import url('https://fonts.googleapis.com/css2?family=Chivo:wght@300;400;500;600;700;800;900&family=El+Messiri:wght@400;500;600;700&display=swap');
 
-:root {
+:root, [data-theme="light"] {
   --bilaraby-dark: #1B180F;
   --bilaraby-dark-2: #2A2620;
-  --bilaraby-dark-3: #3A352C;
   --bilaraby-cream: #F9F7EA;
   --bilaraby-cream-2: #F2EFE0;
   --bilaraby-cream-3: #E8E4D0;
@@ -25,30 +17,69 @@
   --bilaraby-teal: #0B6A62;
   --bilaraby-blue: #104F84;
   --bilaraby-red: #D64E3E;
-  --bilaraby-text: #1B180F;
-  --bilaraby-text-muted: rgba(27, 24, 15, 0.6);
-  --bilaraby-text-soft: rgba(27, 24, 15, 0.4);
-  --bilaraby-border: rgba(27, 24, 15, 0.1);
-  --bilaraby-border-strong: rgba(27, 24, 15, 0.2);
-  --bilaraby-border-gold: rgba(205, 137, 28, 0.4);
 
-  /* Dark panel inverse (used in hero/header/branded panels) */
-  --on-dark-text: #F9F7EA;
-  --on-dark-muted: rgba(249, 247, 234, 0.7);
-  --on-dark-soft: rgba(249, 247, 234, 0.4);
-  --on-dark-border: rgba(249, 247, 234, 0.12);
+  /* Surface colors */
+  --bg-page: #F9F7EA;
+  --bg-card: #FFFFFF;
+  --bg-soft: #F2EFE0;
+  --bg-header: #1B180F;
+  --bg-hero: #1B180F;
+
+  /* Text */
+  --text-primary: #1B180F;
+  --text-muted: rgba(27, 24, 15, 0.65);
+  --text-soft: rgba(27, 24, 15, 0.45);
+  --text-on-dark: #F9F7EA;
+  --text-on-dark-muted: rgba(249, 247, 234, 0.7);
+
+  /* Borders */
+  --border-subtle: rgba(27, 24, 15, 0.1);
+  --border-strong: rgba(27, 24, 15, 0.18);
+  --border-gold: rgba(205, 137, 28, 0.4);
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(27, 24, 15, 0.04);
+  --shadow-elevated: 0 8px 24px rgba(27, 24, 15, 0.08);
+}
+
+[data-theme="dark"] {
+  /* Surfaces — deep warm dark, never pure black */
+  --bg-page: #100E08;
+  --bg-card: #1E1B12;
+  --bg-soft: #16140C;
+  --bg-header: #0A0805;
+  --bg-hero: #0A0805;
+
+  /* Text — cream stays our content color */
+  --text-primary: #F2EFE0;
+  --text-muted: rgba(242, 239, 224, 0.7);
+  --text-soft: rgba(242, 239, 224, 0.4);
+  --text-on-dark: #F9F7EA;
+  --text-on-dark-muted: rgba(249, 247, 234, 0.7);
+
+  /* Borders */
+  --border-subtle: rgba(242, 239, 224, 0.08);
+  --border-strong: rgba(242, 239, 224, 0.16);
+  --border-gold: rgba(205, 137, 28, 0.5);
+
+  /* Cream and gold accents shift slightly to be readable on dark */
+  --bilaraby-cream-2: #1E1B12;
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  background: var(--bilaraby-cream);
-  color: var(--bilaraby-text);
+  background: var(--bg-page);
+  color: var(--text-primary);
   font-family: 'Chivo', sans-serif;
   font-feature-settings: 'ss01';
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 a {
@@ -73,7 +104,7 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
 .result-card:hover {
   border-color: var(--bilaraby-gold) !important;
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(27, 24, 15, 0.08);
+  box-shadow: var(--shadow-elevated);
 }
 
 /* Animations */
@@ -98,7 +129,6 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
   color: var(--bilaraby-gold);
 }
 
-/* Live dot in dashboard */
 .pulse-dot {
   display: inline-block;
   width: 6px;
@@ -113,15 +143,13 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
   50% { opacity: 0.6; box-shadow: 0 0 0 5px rgba(214, 78, 62, 0); }
 }
 
-/* Pipeline: active node breathes with a soft expanding gold ring */
+/* Pipeline breathing */
 @keyframes node-breathe {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(205, 137, 28, 0.45),
-                0 0 18px rgba(205, 137, 28, 0.35);
+    box-shadow: 0 0 0 0 rgba(205, 137, 28, 0.45), 0 0 18px rgba(205, 137, 28, 0.35);
   }
   50% {
-    box-shadow: 0 0 0 12px rgba(205, 137, 28, 0),
-                0 0 32px rgba(205, 137, 28, 0.5);
+    box-shadow: 0 0 0 12px rgba(205, 137, 28, 0), 0 0 32px rgba(205, 137, 28, 0.5);
   }
 }
 
@@ -139,7 +167,6 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
   animation: node-icon-pulse 2.2s ease-in-out infinite;
 }
 
-/* Done nodes: subtle quiet shimmer */
 @keyframes node-shimmer {
   0%, 100% { box-shadow: 0 0 0 0 rgba(205, 137, 28, 0); }
   50% { box-shadow: 0 0 0 4px rgba(205, 137, 28, 0.08); }
@@ -149,104 +176,95 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
   animation: node-shimmer 3s ease-in-out infinite;
 }
 
+/* Skeleton loading */
+@keyframes skeleton-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-soft) 0%, var(--bg-card) 50%, var(--bg-soft) 100%);
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.6s linear infinite;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
 /* Inputs */
-input:focus, textarea:focus {
+input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: var(--bilaraby-gold) !important;
   box-shadow: 0 0 0 3px rgba(205, 137, 28, 0.1);
 }
 
 /* Arabic text utility */
-.arabic { font-family: 'El Messiri', 'Al Marai', serif; direction: rtl; }
+.arabic { font-family: 'El Messiri', serif; direction: rtl; }
 
-/* Brand frame: the L-shaped gold line + double-diamond from BilAraby toolkit */
-.brand-frame {
-  position: relative;
-}
-
-.brand-frame::before {
+/* Brand frame */
+.brand-frame { position: relative; }
+.brand-frame::before, .brand-frame::after {
   content: '';
   position: absolute;
+  background: var(--bilaraby-gold);
+  opacity: 0.5;
+}
+.brand-frame::before {
   top: 14px; left: 14px;
   width: calc(100% - 28px);
   height: 1px;
-  background: var(--bilaraby-gold);
-  opacity: 0.5;
 }
-
 .brand-frame::after {
-  content: '';
-  position: absolute;
   top: 14px; left: 14px;
   width: 1px;
   height: calc(100% - 28px);
-  background: var(--bilaraby-gold);
-  opacity: 0.5;
 }
 
-/* Double-diamond mark — used as visual accent across the tool */
+/* Brand diamonds */
 .brand-diamond {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: 14px; height: 14px;
   position: relative;
 }
-
-.brand-diamond::before,
-.brand-diamond::after {
+.brand-diamond::before, .brand-diamond::after {
   content: '';
   position: absolute;
-  width: 8px;
-  height: 8px;
+  width: 8px; height: 8px;
   background: var(--bilaraby-gold);
   transform: rotate(45deg);
   top: 3px;
 }
-
 .brand-diamond::before { left: -1px; }
 .brand-diamond::after  { left: 7px; }
 
-/* Larger diamond for hero */
 .brand-diamond-lg {
   display: inline-block;
-  width: 28px;
-  height: 16px;
+  width: 28px; height: 16px;
   position: relative;
 }
-
-.brand-diamond-lg::before,
-.brand-diamond-lg::after {
+.brand-diamond-lg::before, .brand-diamond-lg::after {
   content: '';
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 14px; height: 14px;
   background: var(--bilaraby-gold);
   transform: rotate(45deg);
   top: 1px;
 }
-
 .brand-diamond-lg::before { left: 0; }
 .brand-diamond-lg::after  { left: 14px; }
 
-/* Extra-large diamond for hero panels */
 .brand-diamond-xl {
   display: inline-block;
-  width: 44px;
-  height: 24px;
+  width: 44px; height: 24px;
   position: relative;
 }
-
-.brand-diamond-xl::before,
-.brand-diamond-xl::after {
+.brand-diamond-xl::before, .brand-diamond-xl::after {
   content: '';
   position: absolute;
-  width: 22px;
-  height: 22px;
+  width: 22px; height: 22px;
   background: var(--bilaraby-gold);
   transform: rotate(45deg);
   top: 1px;
 }
-
 .brand-diamond-xl::before { left: 0; }
 .brand-diamond-xl::after  { left: 22px; }
 
@@ -261,6 +279,191 @@ input:focus, textarea:focus {
 
 /* Scrollbars */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: var(--bilaraby-cream-2); }
-::-webkit-scrollbar-thumb { background: var(--bilaraby-border-strong); border-radius: 5px; }
+::-webkit-scrollbar-track { background: var(--bg-soft); }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--bilaraby-gold); }
+
+/* =================== MOBILE & TABLET =================== */
+@media (max-width: 1024px) {
+  /* Reduce hero padding on tablet */
+  .hero-pad { padding: 56px 40px 48px !important; }
+  /* Tablet: cards in grid become single column for narrow widths handled below */
+}
+
+@media (max-width: 768px) {
+  /* Mobile: collapse the header tabs into a more compact layout */
+  .header-inner {
+    height: auto !important;
+    padding: 12px 0 !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    align-items: stretch !important;
+  }
+
+  .header-logo {
+    justify-content: center !important;
+  }
+
+  .header-right {
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .header-right > * {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Hero shrinks */
+  .hero-pad {
+    margin: 0 -20px 36px !important;
+    padding: 40px 24px 36px !important;
+  }
+
+  .hero-diamond-pos {
+    top: 16px !important;
+    right: 24px !important;
+  }
+
+  /* Stack the two-card grid */
+  .two-col-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Languages: 3 per row on mobile instead of 4 */
+  .lang-grid-mobile {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Pipeline becomes scrollable */
+  .pipeline-wrap {
+    justify-content: flex-start !important;
+    padding-left: 8px !important;
+  }
+
+  .pipeline-item {
+    min-width: 90px !important;
+  }
+
+  /* Dashboard becomes single column */
+  .dash-grid, .agg-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .dash-card-num, .agg-num {
+    font-size: 38px !important;
+  }
+
+  /* Glossary table becomes scrollable horizontally */
+  .glossary-table-wrap {
+    overflow-x: auto;
+  }
+
+  .glossary-row, .glossary-row-header {
+    min-width: 600px;
+  }
+
+  /* Main page padding shrinks */
+  .main-pad {
+    padding: 0 20px 60px !important;
+  }
+
+  /* Tabs more compact */
+  .tab-btn-text {
+    font-size: 11px !important;
+    padding: 7px 12px !important;
+  }
+
+  /* Hero title smaller */
+  .hero-title-text {
+    font-size: 40px !important;
+    gap: 12px !important;
+  }
+
+  .hero-arabic-text {
+    font-size: 48px !important;
+  }
+
+  /* Results grid */
+  .results-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Phases */
+  .phases-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .tips-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Admin table — let it scroll */
+  .admin-table-wrap {
+    overflow-x: auto;
+  }
+
+  .admin-table-row {
+    min-width: 720px;
+  }
+
+  /* Buttons full width */
+  .results-actions {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+
+  .results-actions button {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Smallest phones */
+  .dash-grid, .agg-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .lang-grid-mobile {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* =================== PRINT =================== */
+@media print {
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  /* Force everything to single column when printing */
+  header, .pipeline-wrap, .hero-print-hidden {
+    display: none !important;
+  }
+
+  .admin-table-row {
+    page-break-inside: avoid;
+  }
+
+  /* Use proper page margins */
+  @page {
+    margin: 1.5cm;
+  }
+
+  /* Make text more readable on paper */
+  * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .agg-num, .dash-card-num {
+    color: #000 !important;
+  }
+}

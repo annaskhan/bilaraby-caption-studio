@@ -178,6 +178,16 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
 
+  // Theme (dark mode)
+  const [theme, setTheme] = useState('light');
+
+  // Translation timer
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef(null);
+
+  // Sound notification preference
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
   // Translation flow
   const [file, setFile]                   = useState(null);
   const [srtContent, setSrtContent]       = useState('');
@@ -232,8 +242,51 @@ export default function Home() {
     if (saved) {
       try { setUser(JSON.parse(saved)); } catch {}
     }
+    const savedTheme = localStorage.getItem('bilaraby_theme');
+    if (savedTheme === 'dark' || savedTheme === 'light') setTheme(savedTheme);
+    const savedSound = localStorage.getItem('bilaraby_sound');
+    if (savedSound === 'false') setSoundEnabled(false);
     setSessionLoaded(true);
   }, []);
+
+  // Apply theme to document
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.setAttribute('data-theme', theme);
+    if (sessionLoaded) localStorage.setItem('bilaraby_theme', theme);
+  }, [theme, sessionLoaded]);
+
+  // Persist sound preference
+  useEffect(() => {
+    if (typeof window === 'undefined' || !sessionLoaded) return;
+    localStorage.setItem('bilaraby_sound', String(soundEnabled));
+  }, [soundEnabled, sessionLoaded]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      // Cmd+Enter / Ctrl+Enter: run translation
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (file && selectedLangs.length > 0 && stage !== 'running') {
+          runTranslation();
+        }
+      }
+      // Escape: close any open dialogs/sections
+      if (e.key === 'Escape') {
+        setGlossaryExpanded(false);
+        setYtExpanded(false);
+        setReuploadExpanded(false);
+      }
+      // Cmd/Ctrl + D: toggle dark mode
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        setTheme(t => t === 'dark' ? 'light' : 'dark');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  });
 
   // Save session
   useEffect(() => {
@@ -362,6 +415,15 @@ export default function Home() {
   const runTranslation = async () => {
     if (!srtContent || selectedLangs.length === 0) return;
     setError(''); setResults({}); setStage('running'); setProgress({}); setUploadStatus({});
+
+    // Start elapsed timer
+    setElapsed(0);
+    const startTime = Date.now();
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
     try {
       setActiveStageIndex(0); await sleep(400);
       setActiveStageIndex(1);
@@ -392,6 +454,13 @@ export default function Home() {
       setActiveStageIndex(4);
       setStage('done');
 
+      // Stop timer
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+
+      // Play completion sound + browser notification
+      playCompletionSound();
+      maybeNotify(`Translation complete — ${Object.keys(newResults).length} languages ready`);
+
       // Auto-scroll to results when complete
       setTimeout(() => {
         document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -414,7 +483,50 @@ export default function Home() {
     } catch (e) {
       setError('Translation failed. Please try again.');
       setStage('idle');
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     }
+  };
+
+  // Sound + notification helpers
+  const playCompletionSound = () => {
+    if (!soundEnabled) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // Two soft tones — like a gentle chime
+      const playTone = (freq, start, duration) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0, ctx.currentTime + start);
+        gain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + start + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
+        osc.start(ctx.currentTime + start);
+        osc.stop(ctx.currentTime + start + duration);
+      };
+      playTone(880, 0, 0.25);    // A5
+      playTone(1320, 0.15, 0.35); // E6
+    } catch {}
+  };
+
+  const maybeNotify = (msg) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (document.hasFocus()) return; // only notify if user is on another tab
+    if (Notification.permission === 'granted') {
+      new Notification('BilAraby Translate', { body: msg, icon: '/favicon.ico', silent: true });
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(perm => {
+        if (perm === 'granted') new Notification('BilAraby Translate', { body: msg, silent: true });
+      });
+    }
+  };
+
+  const formatElapsed = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
   };
 
   // ========= Downloads =========
@@ -629,24 +741,32 @@ export default function Home() {
       <Head>
         <title>BilAraby Translate</title>
         <meta name="description" content="AI-powered Arabic subtitle translation for BilAraby" />
-        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='25' y='25' width='25' height='25' fill='%23CD891C' transform='rotate(45 37.5 37.5)'/><rect x='50' y='25' width='25' height='25' fill='%23CD891C' transform='rotate(45 62.5 37.5)'/></svg>" />
+        <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%231B180F'/%3E%3Crect x='22' y='38' width='24' height='24' fill='%23CD891C' transform='rotate(45 34 50)'/%3E%3Crect x='54' y='38' width='24' height='24' fill='%23CD891C' transform='rotate(45 66 50)'/%3E%3C/svg%3E" />
       </Head>
 
       <div style={s.root}>
         <header style={s.header}>
-          <div style={s.headerInner}>
-            <div style={s.logo}>
+          <div style={s.headerInner} className="header-inner">
+            <div style={s.logo} className="header-logo">
               <span style={s.logoAr} className="arabic">بالعربي</span>
               <span style={s.logoSep}>·</span>
               <span style={s.logoEn}>Translate</span>
             </div>
-            <div style={s.headerRight}>
+            <div style={s.headerRight} className="header-right">
               <div style={s.tabNav}>
-                <button onClick={() => setActiveTab('translate')} style={{ ...s.tabBtn, ...(activeTab === 'translate' ? s.tabBtnActive : {}) }}>Translate</button>
+                <button onClick={() => setActiveTab('translate')} className="tab-btn-text" style={{ ...s.tabBtn, ...(activeTab === 'translate' ? s.tabBtnActive : {}) }}>Translate</button>
                 {user.isAdmin && (
-                  <button onClick={() => setActiveTab('admin')} style={{ ...s.tabBtn, ...(activeTab === 'admin' ? s.tabBtnActive : {}) }}>Admin</button>
+                  <button onClick={() => setActiveTab('admin')} className="tab-btn-text" style={{ ...s.tabBtn, ...(activeTab === 'admin' ? s.tabBtnActive : {}) }}>Admin</button>
                 )}
-                <button onClick={() => setActiveTab('guide')} style={{ ...s.tabBtn, ...(activeTab === 'guide' ? s.tabBtnActive : {}) }}>Guide</button>
+                <button onClick={() => setActiveTab('guide')} className="tab-btn-text" style={{ ...s.tabBtn, ...(activeTab === 'guide' ? s.tabBtnActive : {}) }}>Guide</button>
+              </div>
+              <div style={s.iconToggleGroup}>
+                <button onClick={() => setSoundEnabled(s => !s)} style={s.iconToggle} title={soundEnabled ? 'Sound on — click to mute' : 'Sound muted — click to enable'}>
+                  {soundEnabled ? '🔔' : '🔕'}
+                </button>
+                <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} style={s.iconToggle} title={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
+                  {theme === 'dark' ? '☀' : '☾'}
+                </button>
               </div>
               <div style={s.userChip}>
                 <span style={s.userChipName}>{user.name}</span>
@@ -662,21 +782,26 @@ export default function Home() {
           <AdminTab allUserStats={allUserStats} aggregate={aggregateStats()} formatNum={formatNum} formatRelativeTime={formatRelativeTime} />
         )}
         {activeTab === 'translate' && (
-          <main style={s.main}>
+          <main style={s.main} className="main-pad">
             {/* Hero */}
-            <section style={s.hero}>
-              <div style={s.heroDiamond}><span className="brand-diamond-xl" /></div>
+            <section style={s.hero} className="hero-pad">
+              <div style={s.heroDiamond} className="hero-diamond-pos"><span className="brand-diamond-xl" /></div>
               <div style={s.heroLabel}>An Initiative of Qatar Foundation  ·  Powered by Claude</div>
-              <h1 style={s.heroTitle}>
+              <h1 style={s.heroTitle} className="hero-title-text">
                 <span className="arabic" style={s.heroArabic}>بالعربي</span>
                 <span style={s.heroDivider}>·</span>
                 <span>Translate</span>
               </h1>
               <p style={s.heroSub}>One Arabic subtitle in. Twelve languages out. Your brand glossary enforced. Drafts pushed straight to YouTube.</p>
+              <div style={s.heroTagline}>
+                <span className="arabic" style={s.heroTaglineAr}>للأفكار صوت وصدى</span>
+                <span style={s.heroTaglineDivider}>·</span>
+                <span style={s.heroTaglineEn}>A voice and an echo for ideas</span>
+              </div>
             </section>
 
             {/* Pipeline */}
-            <div style={s.pipelineWrap}>
+            <div style={s.pipelineWrap} className="pipeline-wrap">
               {PIPELINE_STAGES.map((stg, i) => {
                 const isActive = activeStageIndex === i;
                 const isDone = activeStageIndex > i;
@@ -685,7 +810,7 @@ export default function Home() {
                   document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 } : undefined;
                 return (
-                  <div key={stg.id} style={s.pipelineItem}>
+                  <div key={stg.id} style={s.pipelineItem} className="pipeline-item">
                     <div
                       onClick={handleClick}
                       className={isActive ? 'pipeline-node-active' : isDone ? 'pipeline-node-done' : ''}
@@ -719,7 +844,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div style={s.grid}>
+            <div style={s.grid} className="two-col-grid">
               {/* Source */}
               <div style={s.card}>
                 <div style={s.cardLabelRow}>
@@ -784,7 +909,7 @@ export default function Home() {
               {/* Languages */}
               <div style={s.card}>
                 <div style={s.cardLabel}>02 — Target Languages</div>
-                <div style={s.langGrid}>
+                <div style={s.langGrid} className="lang-grid-mobile">
                   {LANGUAGES.map(lang => (
                     <button key={lang.code} onClick={() => toggleLang(lang.code)}
                       style={{ ...s.langBtn, ...(selectedLangs.includes(lang.code) ? s.langBtnActive : {}) }} className="lang-btn">
@@ -821,12 +946,17 @@ export default function Home() {
                       <input type="file" accept=".json" onChange={importGlossary} style={{ display: 'none' }} />
                     </label>
                   </div>
-                  <div style={s.glossaryTable}>
-                    <div style={s.glossaryRowHeader}>
-                      <div>Term</div><div>Translation</div><div>Keep As-Is</div><div>Notes</div><div></div>
+                  <div style={s.glossaryTable} className="glossary-table-wrap">
+                    <div style={{ ...s.glossaryRowHeader, ...(user.isAdmin ? s.glossaryRowAdmin : {}) }}>
+                      <div>Term</div>
+                      <div>Translation</div>
+                      <div>Keep As-Is</div>
+                      <div>Notes</div>
+                      {user.isAdmin && <div style={s.glossaryAdminCol}>🔒 Admin Note</div>}
+                      <div></div>
                     </div>
                     {glossary.map((g, i) => (
-                      <div key={i} style={s.glossaryRow}>
+                      <div key={i} style={{ ...s.glossaryRow, ...(user.isAdmin ? s.glossaryRowAdmin : {}) }}>
                         <input style={s.glossaryInput} value={g.term} placeholder="Allah" onChange={e => updateGlossaryTerm(i, 'term', e.target.value)} />
                         <input style={s.glossaryInput} value={g.translation} placeholder="Allah" onChange={e => updateGlossaryTerm(i, 'translation', e.target.value)} />
                         <label style={s.glossaryCheckLabel}>
@@ -834,6 +964,9 @@ export default function Home() {
                           {g.keepAsIs ? 'Yes' : 'No'}
                         </label>
                         <input style={s.glossaryInput} value={g.notes || ''} placeholder="optional" onChange={e => updateGlossaryTerm(i, 'notes', e.target.value)} />
+                        {user.isAdmin && (
+                          <input style={{ ...s.glossaryInput, ...s.glossaryAdminInput }} value={g.adminNote || ''} placeholder="admin only" onChange={e => updateGlossaryTerm(i, 'adminNote', e.target.value)} />
+                        )}
                         <button onClick={() => removeGlossaryTerm(i)} style={s.glossaryDelBtn}>×</button>
                       </div>
                     ))}
@@ -949,7 +1082,7 @@ export default function Home() {
                               ↓ &nbsp;Download Corrected SRT
                             </button>
                             {videoId && ytConfigured && (
-                              <button onClick={uploadReuploadedToYouTube} style={{ ...s.translateBtn, padding: '13px 26px', fontSize: 12, background: BLUE, borderColor: BLUE, color: CREAM }} className="translate-btn">
+                              <button onClick={uploadReuploadedToYouTube} style={{ ...s.translateBtn, padding: '13px 26px', fontSize: 12, background: BLUE, borderColor: BLUE, color: ON_DARK }} className="translate-btn">
                                 ▶ &nbsp;Upload Corrected Version to YouTube
                               </button>
                             )}
@@ -974,7 +1107,7 @@ export default function Home() {
                 style={{ ...s.translateBtn, ...(!file || selectedLangs.length === 0 ? s.translateBtnDisabled : {}), ...(stage === 'running' ? s.translateBtnRunning : {}) }}
                 className="translate-btn">
                 {stage === 'running'
-                  ? <span style={s.btnInner}><span className="spinner">◈</span>&nbsp;&nbsp; Translating with Claude</span>
+                  ? <span style={s.btnInner}><span className="spinner">◈</span>&nbsp;&nbsp; Translating with Claude  ·  {formatElapsed(elapsed)}</span>
                   : <span style={s.btnInner}><span className="brand-diamond" />&nbsp;&nbsp; Run AI Translation</span>}
               </button>
             </div>
@@ -982,7 +1115,13 @@ export default function Home() {
             {/* Progress */}
             {stage === 'running' && Object.keys(progress).length > 0 && (
               <div style={s.progressCard}>
-                <div style={s.cardLabel}>Translation in Progress</div>
+                <div style={s.progressCardHeader}>
+                  <div style={s.cardLabel}>Translation in Progress</div>
+                  <div style={s.progressTimer}>
+                    <span style={s.progressTimerLabel}>Elapsed</span>
+                    <span style={s.progressTimerValue}>{formatElapsed(elapsed)}</span>
+                  </div>
+                </div>
                 <div style={s.progressGrid}>
                   {selectedLangs.map(code => {
                     const lang = LANGUAGES.find(l => l.code === code);
@@ -1004,15 +1143,15 @@ export default function Home() {
               <div id="results-section" style={s.resultsSection}>
                 <div style={s.resultsHeader}>
                   <div style={s.resultsTitle}><span className="brand-diamond" />&nbsp;&nbsp;Translation Complete</div>
-                  <div style={s.resultsActions}>
+                  <div style={s.resultsActions} className="results-actions">
                     {videoId && ytConfigured && (
                       <button onClick={handleUploadAll} style={{ ...s.translateBtn, ...s.uploadAllBtn }} className="translate-btn">▶ &nbsp;Upload All to YouTube</button>
                     )}
-                    <button onClick={downloadAllDocx} style={{ ...s.translateBtn, ...s.downloadAllBtn, background: PURPLE, borderColor: PURPLE, color: CREAM }} className="translate-btn">📄 &nbsp;Download All as Word</button>
+                    <button onClick={downloadAllDocx} style={{ ...s.translateBtn, ...s.downloadAllBtn, background: PURPLE, borderColor: PURPLE, color: ON_DARK }} className="translate-btn">📄 &nbsp;Download All as Word</button>
                     <button onClick={downloadAll} style={{ ...s.translateBtn, ...s.downloadAllBtn }} className="translate-btn">↓ &nbsp;Download All as SRT</button>
                   </div>
                 </div>
-                <div style={s.resultsGrid}>
+                <div style={s.resultsGrid} className="results-grid">
                   {Object.keys(results).map(code => {
                     const lang = LANGUAGES.find(l => l.code === code);
                     const upStatus = uploadStatus[code];
@@ -1069,35 +1208,35 @@ export default function Home() {
                   <button onClick={resetStats} style={s.dashReset}>Reset</button>
                 </div>
               </div>
-              <div style={s.dashGrid}>
+              <div style={s.dashGrid} className="dash-grid">
                 <div style={s.dashCard}>
                   <div style={s.cardLabel}>Videos Translated</div>
-                  <div style={s.dashCardNum}>{formatNum(animatedStats.videosTranslated)}</div>
+                  <div style={s.dashCardNum} className="dash-card-num">{formatNum(animatedStats.videosTranslated)}</div>
                   <div style={s.dashCardSub}>by {user.name}</div>
                 </div>
                 <div style={s.dashCard}>
                   <div style={s.cardLabel}>Caption Tracks</div>
-                  <div style={s.dashCardNum}>{formatNum(animatedStats.languagesGenerated)}</div>
+                  <div style={s.dashCardNum} className="dash-card-num">{formatNum(animatedStats.languagesGenerated)}</div>
                   <div style={s.dashCardSub}>across all videos</div>
                 </div>
                 <div style={s.dashCard}>
                   <div style={s.cardLabel}>Segments Translated</div>
-                  <div style={s.dashCardNum}>{formatNum(animatedStats.segmentsTranslated)}</div>
+                  <div style={s.dashCardNum} className="dash-card-num">{formatNum(animatedStats.segmentsTranslated)}</div>
                   <div style={s.dashCardSub}>subtitle lines</div>
                 </div>
                 <div style={s.dashCard}>
                   <div style={s.cardLabel}>YouTube Drafts</div>
-                  <div style={s.dashCardNum}>{formatNum(animatedStats.youtubeDraftsPushed)}</div>
+                  <div style={s.dashCardNum} className="dash-card-num">{formatNum(animatedStats.youtubeDraftsPushed)}</div>
                   <div style={s.dashCardSub}>uploaded as drafts</div>
                 </div>
                 <div style={s.dashCard}>
                   <div style={s.cardLabel}>Glossary Terms</div>
-                  <div style={s.dashCardNum}>{formatNum(activeGlossaryCount)}</div>
+                  <div style={s.dashCardNum} className="dash-card-num">{formatNum(activeGlossaryCount)}</div>
                   <div style={s.dashCardSub}>brand-enforced</div>
                 </div>
                 <div style={s.dashCard}>
                   <div style={s.cardLabel}>Languages</div>
-                  <div style={s.dashCardNum}>12</div>
+                  <div style={s.dashCardNum} className="dash-card-num">12</div>
                   <div style={s.dashCardSub}>across 6 continents</div>
                 </div>
               </div>
@@ -1125,6 +1264,29 @@ function AdminTab({ allUserStats, aggregate, formatNum, formatRelativeTime }) {
 
   const totalActive = Object.keys(allUserStats).filter(k => k !== 'ADMIN' && allUserStats[k].videosTranslated > 0).length;
 
+  const exportCSV = () => {
+    const headers = ['Code', 'Name', 'Videos Translated', 'Caption Tracks', 'Segments', 'YouTube Drafts', 'Last Activity'];
+    const rows = sortedUsers.map(u => [
+      u.code,
+      `"${u.name}"`,
+      u.videosTranslated || 0,
+      u.languagesGenerated || 0,
+      u.segmentsTranslated || 0,
+      u.youtubeDraftsPushed || 0,
+      u.lastUsed ? new Date(u.lastUsed).toISOString() : 'Never'
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bilaraby-translate-activity-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const printDashboard = () => window.print();
+
   return (
     <main style={a.main}>
       <section style={a.hero}>
@@ -1134,42 +1296,48 @@ function AdminTab({ allUserStats, aggregate, formatNum, formatRelativeTime }) {
         <p style={a.heroSub}>Aggregate translation activity across all volunteers. Numbers update live as the team uses the tool.</p>
       </section>
 
-      <div style={a.aggregateGrid}>
+      <div style={a.aggregateGrid} className="agg-grid">
         <div style={a.aggCard}>
           <div style={s.cardLabel}>Total Videos</div>
-          <div style={a.aggNum}>{formatNum(aggregate.videosTranslated)}</div>
+          <div style={a.aggNum} className="agg-num">{formatNum(aggregate.videosTranslated)}</div>
           <div style={a.aggSub}>across the whole team</div>
         </div>
         <div style={a.aggCard}>
           <div style={s.cardLabel}>Caption Tracks</div>
-          <div style={a.aggNum}>{formatNum(aggregate.languagesGenerated)}</div>
+          <div style={a.aggNum} className="agg-num">{formatNum(aggregate.languagesGenerated)}</div>
           <div style={a.aggSub}>generated to date</div>
         </div>
         <div style={a.aggCard}>
           <div style={s.cardLabel}>Segments</div>
-          <div style={a.aggNum}>{formatNum(aggregate.segmentsTranslated)}</div>
+          <div style={a.aggNum} className="agg-num">{formatNum(aggregate.segmentsTranslated)}</div>
           <div style={a.aggSub}>subtitle lines</div>
         </div>
         <div style={a.aggCard}>
           <div style={s.cardLabel}>YouTube Drafts</div>
-          <div style={a.aggNum}>{formatNum(aggregate.youtubeDraftsPushed)}</div>
+          <div style={a.aggNum} className="agg-num">{formatNum(aggregate.youtubeDraftsPushed)}</div>
           <div style={a.aggSub}>pushed by team</div>
         </div>
         <div style={a.aggCard}>
           <div style={s.cardLabel}>Active Volunteers</div>
-          <div style={a.aggNum}>{formatNum(totalActive)} <span style={a.aggOf}>/ {VOLUNTEERS.length}</span></div>
+          <div style={a.aggNum} className="agg-num">{formatNum(totalActive)} <span style={a.aggOf}>/ {VOLUNTEERS.length}</span></div>
           <div style={a.aggSub}>have used the tool</div>
         </div>
         <div style={a.aggCard}>
           <div style={s.cardLabel}>Tool Health</div>
-          <div style={a.aggNum} style={{ color: '#0B6A62', fontSize: 28, lineHeight: 1.2 }}>● Operational</div>
+          <div style={a.aggNum} className="agg-num" style={{ color: '#0B6A62', fontSize: 28, lineHeight: 1.2 }}>● Operational</div>
           <div style={a.aggSub}>all systems active</div>
         </div>
       </div>
 
-      <div style={a.tableTitle}>Per-Volunteer Breakdown</div>
+      <div style={a.tableTitleRow}>
+        <div style={a.tableTitle}>Per-Volunteer Breakdown</div>
+        <div style={a.tableActions} className="no-print">
+          <button onClick={exportCSV} style={a.adminActionBtn}>↓ Export CSV</button>
+          <button onClick={printDashboard} style={a.adminActionBtn}>🖨 Print Report</button>
+        </div>
+      </div>
 
-      <div style={a.tableWrap}>
+      <div style={a.tableWrap} className="admin-table-wrap">
         <div style={a.tableHeader}>
           <div style={{ flex: 2 }}>Volunteer</div>
           <div style={{ flex: 1, textAlign: 'right' }}>Videos</div>
@@ -1230,7 +1398,7 @@ function GuideTab() {
         <h1 style={a.heroTitle}>How to Use the Tool</h1>
         <p style={a.heroSub}>Five phases to translate and publish Arabic subtitles across 12 languages with brand-consistent terminology.</p>
       </section>
-      <div style={a.phases}>
+      <div style={a.phases} className="phases-grid">
         {phases.map((ph, pi) => (
           <div key={pi} style={a.phaseCard}>
             <div style={{ ...a.phaseStripe, background: ph.color }} />
@@ -1248,7 +1416,7 @@ function GuideTab() {
         ))}
       </div>
       <div style={a.tipsTitle}>Key Principles</div>
-      <div style={a.tipsGrid}>
+      <div style={a.tipsGrid} className="tips-grid">
         {tips.map(([icon, title, text], i) => (
           <div key={i} style={a.tipCard}>
             <div style={a.tipIcon}>{icon}</div>
@@ -1264,20 +1432,27 @@ function GuideTab() {
 // ============================================================================
 // STYLES
 // ============================================================================
-const DARK = '#1B180F';
-const CREAM = '#F9F7EA';
-const CREAM_2 = '#F2EFE0';
+// Brand accents stay fixed across themes
 const GOLD = '#CD891C';
 const TEAL = '#0B6A62';
 const PURPLE = '#734663';
 const BLUE = '#104F84';
 const RED = '#D64E3E';
-const TEXT = '#1B180F';
-const TEXT_MUTED = 'rgba(27, 24, 15, 0.65)';
-const TEXT_SOFT = 'rgba(27, 24, 15, 0.45)';
-const BORDER = 'rgba(27, 24, 15, 0.1)';
-const BORDER_STRONG = 'rgba(27, 24, 15, 0.18)';
 const BORDER_GOLD = 'rgba(205, 137, 28, 0.4)';
+
+// Surfaces use CSS variables — switch automatically with dark/light theme
+const DARK = 'var(--bg-header)';
+const DARK_HERO = 'var(--bg-hero)';
+const CREAM = 'var(--bg-page)';
+const CREAM_2 = 'var(--bg-soft)';
+const TEXT = 'var(--text-primary)';
+const TEXT_MUTED = 'var(--text-muted)';
+const TEXT_SOFT = 'var(--text-soft)';
+const BORDER = 'var(--border-subtle)';
+const BORDER_STRONG = 'var(--border-strong)';
+const ON_DARK = 'var(--text-on-dark)';
+const ON_DARK_MUTED = 'var(--text-on-dark-muted)';
+const CARD_BG = 'var(--bg-card)';
 
 // Login screen
 const l = {
@@ -1285,11 +1460,11 @@ const l = {
   panel: { textAlign: 'center', maxWidth: 460, width: '100%', position: 'relative', padding: 56 },
   brandMark: { marginBottom: 24, display: 'flex', justifyContent: 'center' },
   label: { fontSize: 13, letterSpacing: 5, fontWeight: 600, color: GOLD, textTransform: 'uppercase', marginBottom: 14 },
-  title: { fontSize: 64, fontWeight: 800, color: CREAM, letterSpacing: -2, lineHeight: 1, margin: 0 },
+  title: { fontSize: 64, fontWeight: 800, color: ON_DARK, letterSpacing: -2, lineHeight: 1, margin: 0 },
   divider: { width: 60, height: 2, background: GOLD, margin: '32px auto' },
   sub: { fontSize: 15, color: 'rgba(249, 247, 234, 0.65)', marginBottom: 36, lineHeight: 1.6 },
   form: { display: 'flex', flexDirection: 'column', gap: 16 },
-  input: { background: 'rgba(249, 247, 234, 0.05)', border: `1.5px solid rgba(249, 247, 234, 0.2)`, borderRadius: 4, padding: '18px 20px', color: CREAM, fontSize: 18, fontFamily: 'inherit', textAlign: 'center', letterSpacing: 4, fontWeight: 700, textTransform: 'uppercase', transition: 'all 0.2s' },
+  input: { background: 'rgba(249, 247, 234, 0.05)', border: `1.5px solid rgba(249, 247, 234, 0.2)`, borderRadius: 4, padding: '18px 20px', color: ON_DARK, fontSize: 18, fontFamily: 'inherit', textAlign: 'center', letterSpacing: 4, fontWeight: 700, textTransform: 'uppercase', transition: 'all 0.2s' },
   error: { fontSize: 13, color: RED, fontWeight: 500 },
   btn: { background: GOLD, color: DARK, border: 'none', borderRadius: 4, padding: '16px 24px', fontSize: 13, fontWeight: 800, letterSpacing: 3, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s', fontFamily: 'inherit' },
   footer: { marginTop: 48, fontSize: 11, color: 'rgba(249, 247, 234, 0.4)', letterSpacing: 1.5, textTransform: 'uppercase' },
@@ -1302,7 +1477,7 @@ const s = {
   header: { background: DARK, padding: '0 40px', position: 'sticky', top: 0, zIndex: 100, borderBottom: `1px solid ${GOLD}` },
   headerInner: { maxWidth: 1280, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 80 },
   logo: { display: 'flex', alignItems: 'center', gap: 16 },
-  logoAr: { fontSize: 34, fontWeight: 700, color: CREAM, lineHeight: 1, letterSpacing: -1 },
+  logoAr: { fontSize: 34, fontWeight: 700, color: ON_DARK, lineHeight: 1, letterSpacing: -1 },
   logoSep: { color: GOLD, fontSize: 18 },
   logoEn: { fontSize: 14, fontWeight: 600, letterSpacing: 3.5, textTransform: 'uppercase', color: 'rgba(249, 247, 234, 0.75)' },
   headerRight: { display: 'flex', alignItems: 'center', gap: 24 },
@@ -1310,18 +1485,39 @@ const s = {
   tabBtn: { background: 'transparent', border: 'none', color: 'rgba(249, 247, 234, 0.55)', fontSize: 12, fontWeight: 700, letterSpacing: 1.5, padding: '9px 18px', borderRadius: 3, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s', fontFamily: 'inherit' },
   tabBtnActive: { background: GOLD, color: DARK },
   userChip: { display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px 6px 16px', background: 'rgba(249, 247, 234, 0.06)', border: `1px solid rgba(249, 247, 234, 0.12)`, borderRadius: 4 },
-  userChipName: { fontSize: 13, fontWeight: 600, color: CREAM, letterSpacing: 0.5 },
+  userChipName: { fontSize: 13, fontWeight: 600, color: ON_DARK, letterSpacing: 0.5 },
   userChipAdmin: { fontSize: 9, fontWeight: 800, letterSpacing: 1.5, color: GOLD, background: 'rgba(205, 137, 28, 0.15)', padding: '3px 7px', borderRadius: 2 },
   userChipLogout: { background: 'transparent', border: 'none', color: 'rgba(249, 247, 234, 0.55)', fontSize: 16, cursor: 'pointer', padding: '4px 8px', borderRadius: 3, fontFamily: 'inherit', transition: 'all 0.2s' },
+
+  // Header icon toggles (sound, theme)
+  iconToggleGroup: { display: 'flex', gap: 4, alignItems: 'center' },
+  iconToggle: { background: 'rgba(249, 247, 234, 0.06)', border: `1px solid rgba(249, 247, 234, 0.12)`, color: 'rgba(249, 247, 234, 0.85)', fontSize: 16, cursor: 'pointer', padding: '7px 10px', borderRadius: 4, fontFamily: 'inherit', transition: 'all 0.2s', lineHeight: 1 },
+
+  // Hero tagline
+  heroTagline: { marginTop: 22, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', paddingTop: 22, borderTop: `1px solid rgba(249, 247, 234, 0.12)` },
+  heroTaglineAr: { fontSize: 22, fontWeight: 600, color: GOLD, letterSpacing: 0 },
+  heroTaglineDivider: { color: 'rgba(249, 247, 234, 0.3)', fontSize: 14 },
+  heroTaglineEn: { fontSize: 13, letterSpacing: 2.5, color: 'rgba(249, 247, 234, 0.6)', textTransform: 'uppercase', fontWeight: 500, fontStyle: 'italic' },
+
+  // Progress timer
+  progressCardHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  progressTimer: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', background: 'rgba(205, 137, 28, 0.1)', border: `1px solid ${BORDER_GOLD}`, borderRadius: 4 },
+  progressTimerLabel: { fontSize: 9, letterSpacing: 1.5, color: TEXT_MUTED, textTransform: 'uppercase', fontWeight: 700 },
+  progressTimerValue: { fontSize: 13, fontWeight: 800, color: GOLD, fontVariantNumeric: 'tabular-nums', letterSpacing: 0.5 },
+
+  // Glossary admin column
+  glossaryAdminCol: { color: PURPLE },
+  glossaryAdminInput: { borderColor: 'rgba(115, 70, 99, 0.3)', background: 'rgba(115, 70, 99, 0.04)' },
+  glossaryRowAdmin: { gridTemplateColumns: '1.3fr 1.3fr 0.7fr 1.4fr 1.4fr 0.3fr' },
 
   main: { maxWidth: 1280, margin: '0 auto', padding: '0 40px 100px' },
 
   // Hero (large, futuristic)
-  hero: { background: DARK, color: CREAM, margin: '0 -40px 64px', padding: '88px 80px 80px', position: 'relative', overflow: 'hidden' },
+  hero: { background: DARK_HERO, color: ON_DARK, margin: '0 -40px 64px', padding: '88px 80px 80px', position: 'relative', overflow: 'hidden' },
   heroDiamond: { position: 'absolute', top: 36, right: 80, opacity: 0.95 },
   heroLabel: { fontSize: 11, letterSpacing: 4, color: GOLD, marginBottom: 28, textTransform: 'uppercase', fontWeight: 600 },
-  heroTitle: { fontSize: 'clamp(44px, 6vw, 80px)', fontWeight: 800, lineHeight: 0.95, margin: '0 0 32px', letterSpacing: -2.5, color: CREAM, display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' },
-  heroArabic: { fontSize: 'clamp(52px, 7vw, 92px)', fontWeight: 700, color: CREAM, lineHeight: 0.9 },
+  heroTitle: { fontSize: 'clamp(44px, 6vw, 80px)', fontWeight: 800, lineHeight: 0.95, margin: '0 0 32px', letterSpacing: -2.5, color: ON_DARK, display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' },
+  heroArabic: { fontSize: 'clamp(52px, 7vw, 92px)', fontWeight: 700, color: ON_DARK, lineHeight: 0.9 },
   heroDivider: { color: GOLD, fontWeight: 300, fontSize: '0.7em' },
   heroSub: { fontSize: 18, color: 'rgba(249, 247, 234, 0.7)', maxWidth: 700, lineHeight: 1.7, fontWeight: 400 },
 
@@ -1329,9 +1525,9 @@ const s = {
   pipelineWrap: { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', marginBottom: 64, overflowX: 'auto', padding: '20px 0', gap: 4 },
   pipelineItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, position: 'relative', flex: '0 0 auto', minWidth: 110 },
   pipelineItemYT: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, flex: '0 0 auto', minWidth: 110, marginLeft: 28, paddingLeft: 28, borderLeft: `1px solid ${BORDER_GOLD}` },
-  pipelineNode: { width: 56, height: 56, borderRadius: '50%', border: `1.5px solid ${BORDER_STRONG}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, color: TEXT_SOFT, transition: 'all 0.4s', background: '#fff', position: 'relative', zIndex: 1 },
+  pipelineNode: { width: 56, height: 56, borderRadius: '50%', border: `1.5px solid ${BORDER_STRONG}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, color: TEXT_SOFT, transition: 'all 0.4s', background: CARD_BG, position: 'relative', zIndex: 1 },
   pipelineNodeActive: { border: `1.5px solid ${GOLD}`, color: DARK, background: GOLD, zIndex: 2 },
-  pipelineNodeDone: { border: `1.5px solid ${GOLD}`, color: GOLD, background: CREAM },
+  pipelineNodeDone: { border: `1.5px solid ${GOLD}`, color: GOLD, background: CARD_BG },
   pipelineNodeReady: { cursor: 'pointer' },
   pipelineLabel: { fontSize: 10, letterSpacing: 1.5, textTransform: 'uppercase', color: TEXT_SOFT, textAlign: 'center', lineHeight: 1.3, transition: 'color 0.4s', fontWeight: 700, whiteSpace: 'nowrap' },
   pipelineLabelActive: { color: DARK },
@@ -1341,12 +1537,12 @@ const s = {
 
   // Cards (much larger)
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 },
-  card: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 6, padding: 36, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  card: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: 36, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   cardLabelRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
   cardLabel: { fontSize: 11, letterSpacing: 3, fontWeight: 800, color: GOLD, textTransform: 'uppercase' },
   modeToggle: { display: 'flex', gap: 2, background: CREAM_2, borderRadius: 4, padding: 3 },
   modeBtn: { background: 'transparent', border: 'none', color: TEXT_MUTED, fontSize: 11, fontWeight: 700, letterSpacing: 1, padding: '7px 13px', borderRadius: 3, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s', fontFamily: 'inherit' },
-  modeBtnActive: { background: DARK, color: CREAM },
+  modeBtnActive: { background: DARK, color: ON_DARK },
 
   // Dropzone (taller)
   dropzone: { border: `1.5px dashed ${BORDER_STRONG}`, borderRadius: 4, padding: '52px 28px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.3s', minHeight: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: CREAM_2 },
@@ -1365,7 +1561,7 @@ const s = {
   // YouTube fetch
   ytFetchBox: { display: 'flex', flexDirection: 'column', gap: 12, padding: '12px 0' },
   ytUrlInput: { background: CREAM_2, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '15px 18px', color: TEXT, fontSize: 14, fontFamily: 'inherit', transition: 'all 0.2s' },
-  ytFetchBtn: { background: RED, border: 'none', borderRadius: 4, padding: '14px 22px', fontSize: 12, fontWeight: 800, letterSpacing: 2, color: CREAM, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.3s', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' },
+  ytFetchBtn: { background: RED, border: 'none', borderRadius: 4, padding: '14px 22px', fontSize: 12, fontWeight: 800, letterSpacing: 2, color: ON_DARK, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.3s', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' },
   ytFetchSuccess: { fontSize: 13, color: TEAL, padding: '10px 14px', background: 'rgba(11, 106, 98, 0.08)', borderRadius: 3, fontWeight: 500 },
   ytFetchNote: { fontSize: 12, color: TEXT_SOFT, lineHeight: 1.6 },
   error: { marginTop: 12, fontSize: 13, color: RED, textAlign: 'center', fontWeight: 500 },
@@ -1380,7 +1576,7 @@ const s = {
   langCount: { marginTop: 16, fontSize: 12, color: GOLD, letterSpacing: 1, textAlign: 'right', fontWeight: 600 },
 
   // Glossary
-  glossaryCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 6, marginBottom: 20, overflow: 'hidden', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  glossaryCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, marginBottom: 20, overflow: 'hidden', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   glossaryHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 36px', cursor: 'pointer', userSelect: 'none' },
   glossaryTitle: { display: 'flex', alignItems: 'center', gap: 14 },
   glossaryCount: { fontSize: 11, color: TEXT_SOFT, fontWeight: 500, letterSpacing: 1, textTransform: 'none' },
@@ -1391,14 +1587,14 @@ const s = {
   glossaryTable: { background: CREAM_2, borderRadius: 4, padding: 8, border: `1px solid ${BORDER}` },
   glossaryRowHeader: { display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.8fr 1.6fr 0.3fr', gap: 8, padding: '10px 8px', fontSize: 10, color: GOLD, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 800 },
   glossaryRow: { display: 'grid', gridTemplateColumns: '1.4fr 1.4fr 0.8fr 1.6fr 0.3fr', gap: 8, padding: 4, alignItems: 'center' },
-  glossaryInput: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 3, padding: '9px 12px', color: TEXT, fontSize: 13, fontFamily: 'inherit', width: '100%' },
+  glossaryInput: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 3, padding: '9px 12px', color: TEXT, fontSize: 13, fontFamily: 'inherit', width: '100%' },
   glossaryCheckLabel: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, color: TEXT_MUTED, cursor: 'pointer', fontWeight: 500 },
   glossaryCheck: { accentColor: GOLD, cursor: 'pointer' },
   glossaryDelBtn: { background: 'transparent', border: 'none', color: 'rgba(214, 78, 62, 0.5)', fontSize: 20, cursor: 'pointer', padding: 4 },
   glossarySaved: { marginTop: 16, fontSize: 12, color: TEAL, letterSpacing: 0.5, fontWeight: 500 },
 
   // YouTube config
-  ytConfigCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 6, marginBottom: 28, overflow: 'hidden', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  ytConfigCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, marginBottom: 28, overflow: 'hidden', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   ytConfigHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '24px 36px', cursor: 'pointer', userSelect: 'none' },
   chevron: { fontSize: 11, color: TEXT_SOFT },
   ytConfigBody: { padding: '0 36px 28px', borderTop: `1px solid ${BORDER}` },
@@ -1414,7 +1610,7 @@ const s = {
 
   // Run button (big, futuristic)
   actionRow: { display: 'flex', justifyContent: 'center', marginBottom: 28 },
-  translateBtn: { background: DARK, border: `2px solid ${GOLD}`, borderRadius: 4, padding: '20px 64px', fontSize: 14, fontWeight: 800, letterSpacing: 3, color: CREAM, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.3s', boxShadow: `0 6px 28px rgba(27, 24, 15, 0.18)`, fontFamily: 'inherit' },
+  translateBtn: { background: DARK, border: `2px solid ${GOLD}`, borderRadius: 4, padding: '20px 64px', fontSize: 14, fontWeight: 800, letterSpacing: 3, color: ON_DARK, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.3s', boxShadow: `0 6px 28px rgba(27, 24, 15, 0.18)`, fontFamily: 'inherit' },
   translateBtnDisabled: { opacity: 0.3, cursor: 'not-allowed' },
   translateBtnRunning: { background: CREAM_2, color: DARK, border: `2px solid ${GOLD}` },
   btnInner: { display: 'flex', alignItems: 'center', justifyContent: 'center' },
@@ -1423,7 +1619,7 @@ const s = {
   // Progress
   progressCard: { background: CREAM_2, border: `1px solid ${BORDER}`, borderLeft: `4px solid ${GOLD}`, borderRadius: 2, padding: 28, marginBottom: 28 },
   progressGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 8, marginTop: 16 },
-  progressItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 3, background: '#fff', border: `1px solid ${BORDER}`, fontSize: 13 },
+  progressItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 3, background: CARD_BG, border: `1px solid ${BORDER}`, fontSize: 13 },
   progressItemActive: { border: `1.5px solid ${GOLD}` },
   progressItemDone: { border: `1px solid ${TEAL}`, background: 'rgba(11, 106, 98, 0.04)' },
   progressLang: { flex: 1, fontSize: 12, color: TEXT, fontWeight: 500 },
@@ -1434,10 +1630,10 @@ const s = {
   resultsHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 14 },
   resultsTitle: { fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 14, color: TEXT, letterSpacing: -0.5 },
   resultsActions: { display: 'flex', gap: 12 },
-  uploadAllBtn: { padding: '13px 26px', fontSize: 12, background: BLUE, borderColor: BLUE, color: CREAM },
+  uploadAllBtn: { padding: '13px 26px', fontSize: 12, background: BLUE, borderColor: BLUE, color: ON_DARK },
   downloadAllBtn: { padding: '13px 26px', fontSize: 12 },
   resultsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 16 },
-  resultCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 6, padding: 22, transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  resultCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: 22, transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   resultLang: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 },
   resultFlag: { fontSize: 28 },
   resultLangName: { fontSize: 15, fontWeight: 700, color: TEXT },
@@ -1467,7 +1663,7 @@ const s = {
   dashSubAccent: { color: GOLD, fontWeight: 700 },
   dashReset: { background: 'transparent', border: `1px solid ${BORDER_STRONG}`, color: TEXT_MUTED, fontSize: 11, fontWeight: 700, letterSpacing: 1, padding: '6px 12px', borderRadius: 3, cursor: 'pointer', textTransform: 'uppercase', fontFamily: 'inherit', transition: 'all 0.2s' },
   dashGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 },
-  dashCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 6, padding: 28, transition: 'all 0.3s', position: 'relative', overflow: 'hidden', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  dashCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: 28, transition: 'all 0.3s', position: 'relative', overflow: 'hidden', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   dashCardNum: { fontSize: 56, fontWeight: 800, color: DARK, letterSpacing: -2, lineHeight: 1, marginBottom: 8, marginTop: 14, fontVariantNumeric: 'tabular-nums', fontFamily: 'Chivo, sans-serif' },
   dashCardSub: { fontSize: 12, color: TEXT_SOFT, letterSpacing: 0.3 },
   dashFooter: { marginTop: 24, fontSize: 11, color: TEXT_SOFT, textAlign: 'center', letterSpacing: 1, fontStyle: 'italic' },
@@ -1476,20 +1672,23 @@ const s = {
 // Admin & Guide tab
 const a = {
   main: { maxWidth: 1280, margin: '0 auto', padding: '0 40px 100px' },
-  hero: { background: DARK, color: CREAM, margin: '0 -40px 56px', padding: '72px 80px 64px', position: 'relative' },
+  hero: { background: DARK_HERO, color: ON_DARK, margin: '0 -40px 56px', padding: '72px 80px 64px', position: 'relative' },
   heroDiamond: { position: 'absolute', top: 32, right: 80, opacity: 0.95 },
   heroLabel: { fontSize: 11, letterSpacing: 4, color: GOLD, marginBottom: 22, textTransform: 'uppercase', fontWeight: 600 },
-  heroTitle: { fontSize: 'clamp(36px, 5vw, 60px)', fontWeight: 800, margin: '0 0 22px', letterSpacing: -1.5, color: CREAM, lineHeight: 1 },
+  heroTitle: { fontSize: 'clamp(36px, 5vw, 60px)', fontWeight: 800, margin: '0 0 22px', letterSpacing: -1.5, color: ON_DARK, lineHeight: 1 },
   heroSub: { fontSize: 16, color: 'rgba(249, 247, 234, 0.7)', maxWidth: 700, lineHeight: 1.7 },
 
   aggregateGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 56 },
-  aggCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 6, padding: 32, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  aggCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: 32, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   aggNum: { fontSize: 52, fontWeight: 800, color: DARK, letterSpacing: -2, lineHeight: 1, marginTop: 14, marginBottom: 8, fontVariantNumeric: 'tabular-nums' },
   aggOf: { fontSize: 24, color: TEXT_SOFT, fontWeight: 600 },
   aggSub: { fontSize: 12, color: TEXT_SOFT, letterSpacing: 0.3 },
 
   tableTitle: { fontSize: 18, fontWeight: 800, color: TEXT, marginBottom: 18, letterSpacing: -0.3 },
-  tableWrap: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden', marginBottom: 32, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  tableTitleRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 12 },
+  tableActions: { display: 'flex', gap: 8 },
+  adminActionBtn: { background: CREAM_2, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '9px 14px', fontSize: 11, color: TEXT_MUTED, cursor: 'pointer', fontWeight: 700, letterSpacing: 1, fontFamily: 'inherit', transition: 'all 0.2s', textTransform: 'uppercase' },
+  tableWrap: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden', marginBottom: 32, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   tableHeader: { display: 'flex', alignItems: 'center', padding: '16px 24px', background: CREAM_2, fontSize: 10, letterSpacing: 2, color: GOLD, textTransform: 'uppercase', fontWeight: 800, gap: 12, borderBottom: `1px solid ${BORDER}` },
   tableRow: { display: 'flex', alignItems: 'center', padding: '18px 24px', borderBottom: `1px solid ${BORDER}`, gap: 12, transition: 'background 0.2s' },
   tableRowTop: { background: 'rgba(205, 137, 28, 0.04)' },
@@ -1504,7 +1703,7 @@ const a = {
 
   // Guide tab
   phases: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 56 },
-  phaseCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden', display: 'flex', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  phaseCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden', display: 'flex', boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   phaseStripe: { width: 5, flexShrink: 0 },
   phaseContent: { padding: 28, flex: 1 },
   phaseTag: { fontSize: 10, fontWeight: 800, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 12 },
@@ -1514,7 +1713,7 @@ const a = {
   stepText: { fontSize: 13, color: TEXT_MUTED, lineHeight: 1.6 },
   tipsTitle: { fontSize: 14, fontWeight: 800, letterSpacing: 2.5, color: GOLD, textTransform: 'uppercase', marginBottom: 24 },
   tipsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 },
-  tipCard: { background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 6, padding: 24, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
+  tipCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: 24, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   tipIcon: { fontSize: 22, marginBottom: 14, color: GOLD },
   tipTitle: { fontSize: 14, fontWeight: 800, marginBottom: 10, color: TEXT },
   tipText: { fontSize: 12, color: TEXT_MUTED, lineHeight: 1.6 },
