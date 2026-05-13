@@ -539,6 +539,7 @@ export default function Home() {
           newResults[code] = buildSRT(translated);
           setProgress(p => ({ ...p, [code]: 'done' }));
         } catch (e) {
+          console.error(`[BilAraby Translate] ${lang.label} failed:`, e.message);
           setProgress(p => ({ ...p, [code]: 'error' }));
         }
       }));
@@ -546,12 +547,28 @@ export default function Home() {
       setActiveStageIndex(3); await sleep(500);
       setResults(newResults);
       setActiveStageIndex(4);
-      setStage('done');
 
       // Stop timer + update rolling benchmark
       const finalElapsedMs = Date.now() - startTime;
       const successfulLangs = Object.keys(newResults).length;
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+
+      // If ALL translations failed, surface a clear error rather than silently completing
+      if (successfulLangs === 0) {
+        setError('All translations failed. This usually means the ANTHROPIC_API_KEY in Vercel is missing, expired, or rate-limited. Ask your admin to check console.anthropic.com and confirm the key is active.');
+        setStage('idle');
+        setActiveStageIndex(-1);
+        return;
+      }
+
+      setStage('done');
+
+      // If some (but not all) failed, partial success
+      if (successfulLangs < selectedLangs.length) {
+        const failed = selectedLangs.length - successfulLangs;
+        setError(`${failed} of ${selectedLangs.length} languages failed. You can re-run just the failed ones, or download what completed below.`);
+      }
+
       if (successfulLangs > 0 && blocks.length > 0) {
         const observedMsPerUnit = finalElapsedMs / (blocks.length * successfulLangs);
         // Rolling average: weighted 70% old, 30% new (smooth but adaptive)
@@ -1473,9 +1490,10 @@ function AdminTab({ allUserStats, aggregate, formatNum, formatRelativeTime, stat
   const totalActive = Object.keys(allUserStats).filter(k => k !== 'ADMIN' && allUserStats[k].videosTranslated > 0).length;
 
   // ===== Cost Estimation =====
-  // Anthropic Claude API pricing (approximate): ~$3 input + $15 output per 1M tokens
+  // Anthropic Claude Sonnet 4.6 pricing: $3 input + $15 output per 1M tokens
   // Average subtitle segment: ~25 input tokens × ~35 output tokens per language
-  // → ~25 × 0.000003 + 35 × 0.000015 = ~$0.0006 per segment per language
+  // → 25 × 0.000003 + 35 × 0.000015 = ~$0.0006 per segment per language
+  // Using Sonnet for translation gives same quality at lower cost than Opus
   const COST_PER_SEGMENT = 0.0006;
   const totalCostEstimate = aggregate.segmentsTranslated * COST_PER_SEGMENT;
   const monthlyEstimate = totalCostEstimate; // assume current data is roughly monthly
