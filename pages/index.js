@@ -531,18 +531,47 @@ export default function Home() {
       setProgress({ ...progMap });
       const activeGlossary = glossary.filter(g => g.term && g.term.trim());
 
-      await Promise.all(selectedLangs.map(async (code) => {
+      // Translate in batches of 2 concurrent (avoids rate limits while staying fast)
+      // With automatic retry-on-429 (rate limit) — waits and tries again up to 2 times
+      const BATCH_SIZE = 2;
+      const MAX_RETRIES = 2;
+      const BACKOFF_MS = 8000;
+
+      const translateOne = async (code) => {
         const lang = LANGUAGES.find(l => l.code === code);
-        try {
-          setProgress(p => ({ ...p, [code]: 'translating' }));
-          const translated = await translateBlocks(blocks, lang.label, activeGlossary);
-          newResults[code] = buildSRT(translated);
-          setProgress(p => ({ ...p, [code]: 'done' }));
-        } catch (e) {
-          console.error(`[BilAraby Translate] ${lang.label} failed:`, e.message);
-          setProgress(p => ({ ...p, [code]: 'error' }));
+        let attempt = 0;
+        while (attempt <= MAX_RETRIES) {
+          try {
+            setProgress(p => ({ ...p, [code]: attempt > 0 ? 'retrying' : 'translating' }));
+            const translated = await translateBlocks(blocks, lang.label, activeGlossary);
+            newResults[code] = buildSRT(translated);
+            setProgress(p => ({ ...p, [code]: 'done' }));
+            return;
+          } catch (e) {
+            const errMsg = e.message || '';
+            const isRateLimit = /429|rate.?limit|tokens per minute|requests per minute|overloaded/i.test(errMsg);
+            attempt++;
+            console.error(`[BilAraby Translate] ${lang.label} attempt ${attempt} failed:`, errMsg);
+            if (isRateLimit && attempt <= MAX_RETRIES) {
+              setProgress(p => ({ ...p, [code]: 'waiting' }));
+              await sleep(BACKOFF_MS * attempt);
+              continue;
+            }
+            setProgress(p => ({ ...p, [code]: 'error' }));
+            return;
+          }
         }
-      }));
+      };
+
+      // Process in batches of BATCH_SIZE
+      for (let i = 0; i < selectedLangs.length; i += BATCH_SIZE) {
+        const batch = selectedLangs.slice(i, i + BATCH_SIZE);
+        await Promise.all(batch.map(translateOne));
+        // Brief pause between batches to spread out token usage
+        if (i + BATCH_SIZE < selectedLangs.length) {
+          await sleep(1500);
+        }
+      }
 
       setActiveStageIndex(3); await sleep(500);
       setResults(newResults);
@@ -1317,11 +1346,27 @@ export default function Home() {
                   {selectedLangs.map(code => {
                     const lang = LANGUAGES.find(l => l.code === code);
                     const status = progress[code];
+                    const statusIcon =
+                      status === 'done' ? '✓' :
+                      status === 'translating' ? <span className="pulse">●</span> :
+                      status === 'retrying' ? <span className="pulse" style={{ color: GOLD }}>↻</span> :
+                      status === 'waiting' ? <span style={{ color: GOLD }}>⏳</span> :
+                      status === 'error' ? <span style={{ color: RED }}>✕</span> :
+                      '·';
+                    const statusLabel =
+                      status === 'waiting' ? ' (rate limit, waiting)' :
+                      status === 'retrying' ? ' (retrying)' :
+                      '';
+                    const itemStyle =
+                      status === 'done' ? s.progressItemDone :
+                      status === 'translating' || status === 'retrying' || status === 'waiting' ? s.progressItemActive :
+                      status === 'error' ? s.progressItemError :
+                      {};
                     return (
-                      <div key={code} style={{ ...s.progressItem, ...(status === 'done' ? s.progressItemDone : status === 'translating' ? s.progressItemActive : {}) }}>
+                      <div key={code} style={{ ...s.progressItem, ...itemStyle }} title={statusLabel}>
                         <span style={{ fontSize: 18 }}>{lang.flag}</span>
-                        <span style={s.progressLang}>{lang.label}</span>
-                        <span style={s.progressStatus}>{status === 'done' ? '✓' : status === 'translating' ? <span className="pulse">●</span> : '·'}</span>
+                        <span style={s.progressLang}>{lang.label}{statusLabel}</span>
+                        <span style={s.progressStatus}>{statusIcon}</span>
                       </div>
                     );
                   })}
@@ -2075,6 +2120,7 @@ const s = {
   progressItem: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 3, background: CARD_BG, border: `1px solid ${BORDER}`, fontSize: 13 },
   progressItemActive: { border: `1.5px solid ${GOLD}` },
   progressItemDone: { border: `1px solid ${TEAL}`, background: 'rgba(15, 122, 77, 0.04)' },
+  progressItemError: { border: `1px solid ${RED}`, background: 'rgba(214, 78, 62, 0.04)' },
   progressLang: { flex: 1, fontSize: 12, color: TEXT, fontWeight: 500 },
   progressStatus: { fontSize: 13, color: GOLD, fontWeight: 800 },
 

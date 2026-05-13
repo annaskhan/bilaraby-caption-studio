@@ -62,7 +62,7 @@ Return ONLY the translated segments in the exact same format.`;
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 16000,
+        max_tokens: 32000,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
