@@ -915,7 +915,7 @@ export default function Home() {
 
         {activeTab === 'guide' && <GuideTab />}
         {activeTab === 'admin' && user.isAdmin && (
-          <AdminTab allUserStats={allUserStats} aggregate={aggregateStats()} formatNum={formatNum} formatRelativeTime={formatRelativeTime} />
+          <AdminTab allUserStats={allUserStats} aggregate={aggregateStats()} formatNum={formatNum} formatRelativeTime={formatRelativeTime} stats={stats} />
         )}
         {activeTab === 'translate' && (
           <main style={s.main} className="main-pad">
@@ -1464,13 +1464,56 @@ export default function Home() {
 // ============================================================================
 // ADMIN TAB
 // ============================================================================
-function AdminTab({ allUserStats, aggregate, formatNum, formatRelativeTime }) {
+function AdminTab({ allUserStats, aggregate, formatNum, formatRelativeTime, stats }) {
   const sortedUsers = [...VOLUNTEERS].map(v => ({
     ...v,
     ...((allUserStats[v.code]) || { videosTranslated: 0, languagesGenerated: 0, segmentsTranslated: 0, youtubeDraftsPushed: 0, lastUsed: null })
   })).sort((a, b) => (b.videosTranslated || 0) - (a.videosTranslated || 0));
 
   const totalActive = Object.keys(allUserStats).filter(k => k !== 'ADMIN' && allUserStats[k].videosTranslated > 0).length;
+
+  // ===== Cost Estimation =====
+  // Anthropic Claude API pricing (approximate): ~$3 input + $15 output per 1M tokens
+  // Average subtitle segment: ~25 input tokens × ~35 output tokens per language
+  // → ~25 × 0.000003 + 35 × 0.000015 = ~$0.0006 per segment per language
+  const COST_PER_SEGMENT = 0.0006;
+  const totalCostEstimate = aggregate.segmentsTranslated * COST_PER_SEGMENT;
+  const monthlyEstimate = totalCostEstimate; // assume current data is roughly monthly
+  const annualEstimate = monthlyEstimate * 12;
+  const captionHubCost = 41000; // USD/year reference
+  const annualSavings = captionHubCost - annualEstimate;
+  const captionHubMonthly = captionHubCost / 12;
+
+  // ===== Velocity data — last 8 weeks =====
+  // Build weekly buckets from lastUsed timestamps + aggregate counts
+  // Note: this is approximate since we only have aggregate stats per user
+  const now = new Date();
+  const weeks = [];
+  for (let i = 7; i >= 0; i--) {
+    const start = new Date(now);
+    start.setDate(start.getDate() - i * 7);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+    weeks.push({
+      start, end,
+      label: start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+      videos: 0, segments: 0
+    });
+  }
+  // Distribute total counts proportionally to the most recent users with activity
+  // (Best-effort estimate without per-event timestamps)
+  Object.values(allUserStats).forEach(u => {
+    if (!u.lastUsed) return;
+    const lastDate = new Date(u.lastUsed);
+    const week = weeks.find(w => lastDate >= w.start && lastDate < w.end);
+    if (week) {
+      week.videos += u.videosTranslated || 0;
+      week.segments += u.segmentsTranslated || 0;
+    }
+  });
+  const maxWeekVideos = Math.max(1, ...weeks.map(w => w.videos));
+  const maxWeekSegments = Math.max(1, ...weeks.map(w => w.segments));
 
   const exportCSV = () => {
     const headers = ['Code', 'Name', 'Videos Translated', 'Caption Tracks', 'Segments', 'YouTube Drafts', 'Last Activity'];
@@ -1494,6 +1537,47 @@ function AdminTab({ allUserStats, aggregate, formatNum, formatRelativeTime }) {
   };
 
   const printDashboard = () => window.print();
+
+  // ===== Monthly PDF Report =====
+  const [reportGenerating, setReportGenerating] = useState(false);
+  const [reportMonth, setReportMonth] = useState(new Date().toLocaleString('en-GB', { month: 'long' }));
+  const [reportYear, setReportYear] = useState(new Date().getFullYear());
+
+  const generateReport = async () => {
+    setReportGenerating(true);
+    try {
+      const response = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stats: aggregate,
+          allUserStats,
+          volunteers: VOLUNTEERS,
+          month: reportMonth,
+          year: reportYear,
+          costEstimate: totalCostEstimate,
+        })
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Report generation failed');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bilaraby-translate-${reportMonth.toLowerCase()}-${reportYear}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(`Failed to generate report: ${e.message}`);
+    } finally {
+      setReportGenerating(false);
+    }
+  };
+
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const years = [new Date().getFullYear() - 1, new Date().getFullYear()];
 
   return (
     <main style={a.main}>
@@ -1534,6 +1618,140 @@ function AdminTab({ allUserStats, aggregate, formatNum, formatRelativeTime }) {
           <div style={s.cardLabel}>Tool Health</div>
           <div style={{ ...a.aggNum, color: '#0F7A4D', fontSize: 28, lineHeight: 1.2 }} className="agg-num">● Operational</div>
           <div style={a.aggSub}>all systems active</div>
+        </div>
+      </div>
+
+      {/* ===== COST DASHBOARD ===== */}
+      <div style={a.sectionTitleRow}>
+        <div style={a.sectionTitle}>Cost Overview</div>
+        <span style={a.sectionSubtitle}>Estimated spend versus CaptionHub benchmark</span>
+      </div>
+      <div style={a.costGrid} className="cost-grid">
+        <div style={a.costCard}>
+          <div style={s.cardLabel}>Estimated Spend</div>
+          <div style={a.costValue}>${monthlyEstimate.toFixed(2)}</div>
+          <div style={a.costSub}>this period · Claude API</div>
+          <div style={a.costNote}>~$0.0006 per segment per language</div>
+        </div>
+        <div style={a.costCard}>
+          <div style={s.cardLabel}>CaptionHub Equivalent</div>
+          <div style={{ ...a.costValue, color: RED, textDecoration: 'line-through', textDecorationColor: 'rgba(214, 78, 62, 0.4)' }}>${captionHubMonthly.toFixed(0)}/mo</div>
+          <div style={a.costSub}>previous subscription cost</div>
+          <div style={a.costNote}>QAR 12,500/month</div>
+        </div>
+        <div style={a.costCard}>
+          <div style={s.cardLabel}>Projected Annual Savings</div>
+          <div style={{ ...a.costValue, color: GOLD }}>${Math.round(annualSavings).toLocaleString()}</div>
+          <div style={a.costSub}>versus previous solution</div>
+          <div style={a.costNote}>QAR {Math.round(annualSavings * 3.64).toLocaleString()}</div>
+        </div>
+      </div>
+      <div style={a.costFootnote}>
+        Estimate based on segments translated × Claude API pricing (~$0.0006 per segment per language). For exact billing, see <a href="https://console.anthropic.com/usage" target="_blank" rel="noopener" style={{ color: GOLD }}>Anthropic Console → Usage</a>.
+      </div>
+
+      {/* ===== VELOCITY CHART ===== */}
+      <div style={a.sectionTitleRow}>
+        <div style={a.sectionTitle}>Translation Velocity</div>
+        <span style={a.sectionSubtitle}>Activity across the last 8 weeks</span>
+      </div>
+      <div style={a.chartCard}>
+        <div style={a.chartHeader}>
+          <div>
+            <div style={a.chartTitle}>Videos translated per week</div>
+            <div style={a.chartSubtitle}>{aggregate.videosTranslated} total · {(aggregate.videosTranslated / 8).toFixed(1)} avg per week</div>
+          </div>
+        </div>
+        <svg width="100%" height="140" viewBox="0 0 800 140" preserveAspectRatio="none" style={{ display: 'block' }}>
+          {/* Y-axis grid lines */}
+          {[0, 25, 50, 75, 100].map(p => (
+            <line key={p} x1="0" y1={120 - (p * 1.0)} x2="800" y2={120 - (p * 1.0)} stroke="rgba(15,122,77,0.08)" strokeWidth="1" />
+          ))}
+          {/* Bars */}
+          {weeks.map((w, i) => {
+            const barW = 800 / 8 - 12;
+            const x = (800 / 8) * i + 6;
+            const h = (w.videos / maxWeekVideos) * 100;
+            const y = 120 - h;
+            return (
+              <g key={i}>
+                <rect x={x} y={y} width={barW} height={h} fill={GOLD} opacity={w.videos > 0 ? 0.9 : 0.15} rx="2" />
+                {w.videos > 0 && (
+                  <text x={x + barW / 2} y={y - 6} fontSize="11" fill={GOLD} fontWeight="700" textAnchor="middle">{w.videos}</text>
+                )}
+                <text x={x + barW / 2} y={135} fontSize="9" fill="rgba(27,24,15,0.5)" textAnchor="middle">{w.label}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div style={a.chartCard}>
+        <div style={a.chartHeader}>
+          <div>
+            <div style={a.chartTitle}>Segments translated per week</div>
+            <div style={a.chartSubtitle}>{aggregate.segmentsTranslated.toLocaleString()} total subtitle lines processed</div>
+          </div>
+        </div>
+        <svg width="100%" height="140" viewBox="0 0 800 140" preserveAspectRatio="none" style={{ display: 'block' }}>
+          {[0, 25, 50, 75, 100].map(p => (
+            <line key={p} x1="0" y1={120 - p} x2="800" y2={120 - p} stroke="rgba(15,122,77,0.08)" strokeWidth="1" />
+          ))}
+          {/* Line chart */}
+          <polyline
+            points={weeks.map((w, i) => {
+              const x = (800 / 8) * i + (800 / 16);
+              const h = (w.segments / maxWeekSegments) * 100;
+              return `${x},${120 - h}`;
+            }).join(' ')}
+            fill="none"
+            stroke={GOLD}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          {weeks.map((w, i) => {
+            const x = (800 / 8) * i + (800 / 16);
+            const h = (w.segments / maxWeekSegments) * 100;
+            const y = 120 - h;
+            return (
+              <g key={i}>
+                {w.segments > 0 && <circle cx={x} cy={y} r="4" fill={GOLD} stroke="#fff" strokeWidth="2" />}
+                {w.segments > 0 && <text x={x} y={y - 10} fontSize="10" fill={GOLD} fontWeight="600" textAnchor="middle">{w.segments}</text>}
+                <text x={x} y={135} fontSize="9" fill="rgba(27,24,15,0.5)" textAnchor="middle">{w.label}</text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div style={a.chartFootnote}>
+        Velocity data is approximate, derived from each volunteer's last activity timestamp and aggregate counts. For per-event timestamps and true historical accuracy, complete the Supabase setup to enable cross-device data tracking.
+      </div>
+
+      {/* ===== MONTHLY REPORT ===== */}
+      <div style={a.sectionTitleRow}>
+        <div style={a.sectionTitle}>Monthly Report</div>
+        <span style={a.sectionSubtitle}>Generate a branded PDF for stakeholders</span>
+      </div>
+      <div style={a.reportCard}>
+        <div style={a.reportLeft}>
+          <div style={a.reportIcon}>📄</div>
+          <div>
+            <div style={a.reportTitle}>Activity Report PDF</div>
+            <div style={a.reportSub}>Includes executive summary, key metrics, cost overview, and full volunteer leaderboard. Branded with BilAraby visual identity.</div>
+          </div>
+        </div>
+        <div style={a.reportControls} className="no-print">
+          <select value={reportMonth} onChange={e => setReportMonth(e.target.value)} style={a.reportSelect}>
+            {months.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select value={reportYear} onChange={e => setReportYear(parseInt(e.target.value))} style={a.reportSelect}>
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <button onClick={generateReport} disabled={reportGenerating} style={{ ...a.reportGenerateBtn, ...(reportGenerating ? { opacity: 0.6, cursor: 'wait' } : {}) }}>
+            {reportGenerating ? <><span className="spinner">◈</span>&nbsp; Generating</> : '↓ Generate PDF'}
+          </button>
         </div>
       </div>
 
@@ -1911,6 +2129,36 @@ const a = {
   heroSub: { fontSize: 16, color: 'rgba(249, 247, 234, 0.7)', maxWidth: 700, lineHeight: 1.7 },
 
   aggregateGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 56 },
+
+  // Section headings within admin
+  sectionTitleRow: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18, marginTop: 16, flexWrap: 'wrap', gap: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: 800, color: TEXT, letterSpacing: -0.3 },
+  sectionSubtitle: { fontSize: 12, color: TEXT_SOFT, fontStyle: 'italic' },
+
+  // Cost dashboard
+  costGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 14 },
+  costCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: 28, boxShadow: '0 1px 3px rgba(14, 20, 17, 0.04)' },
+  costValue: { fontSize: 36, fontWeight: 800, color: TEXT, letterSpacing: -1, lineHeight: 1, marginTop: 14, marginBottom: 6, fontVariantNumeric: 'tabular-nums' },
+  costSub: { fontSize: 12, color: TEXT_MUTED, fontWeight: 500 },
+  costNote: { fontSize: 11, color: TEXT_SOFT, marginTop: 8, fontStyle: 'italic' },
+  costFootnote: { fontSize: 12, color: TEXT_SOFT, marginBottom: 48, lineHeight: 1.6, fontStyle: 'italic' },
+
+  // Velocity charts
+  chartCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: 28, marginBottom: 14, boxShadow: '0 1px 3px rgba(14, 20, 17, 0.04)' },
+  chartHeader: { marginBottom: 18 },
+  chartTitle: { fontSize: 14, fontWeight: 700, color: TEXT, marginBottom: 4 },
+  chartSubtitle: { fontSize: 12, color: TEXT_SOFT, letterSpacing: 0.3 },
+  chartFootnote: { fontSize: 12, color: TEXT_SOFT, marginBottom: 48, lineHeight: 1.6, fontStyle: 'italic' },
+
+  // Monthly Report
+  reportCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderLeft: `4px solid ${GOLD}`, borderRadius: 6, padding: 28, marginBottom: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap', boxShadow: '0 1px 3px rgba(14, 20, 17, 0.04)' },
+  reportLeft: { display: 'flex', alignItems: 'center', gap: 18, flex: 1, minWidth: 280 },
+  reportIcon: { fontSize: 36, lineHeight: 1 },
+  reportTitle: { fontSize: 16, fontWeight: 800, color: TEXT, marginBottom: 6 },
+  reportSub: { fontSize: 12, color: TEXT_MUTED, lineHeight: 1.6, maxWidth: 460 },
+  reportControls: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' },
+  reportSelect: { background: CREAM_2, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '10px 14px', fontSize: 13, color: TEXT, fontFamily: 'inherit', cursor: 'pointer' },
+  reportGenerateBtn: { background: GOLD, border: 'none', borderRadius: 4, padding: '12px 22px', fontSize: 12, fontWeight: 800, letterSpacing: 1.5, color: ON_DARK, cursor: 'pointer', textTransform: 'uppercase', transition: 'all 0.2s', fontFamily: 'inherit' },
   aggCard: { background: CARD_BG, border: `1px solid ${BORDER}`, borderRadius: 6, padding: 32, boxShadow: '0 1px 3px rgba(27, 24, 15, 0.04)' },
   aggNum: { fontSize: 52, fontWeight: 800, color: DARK, letterSpacing: -2, lineHeight: 1, marginTop: 14, marginBottom: 8, fontVariantNumeric: 'tabular-nums' },
   aggOf: { fontSize: 24, color: TEXT_SOFT, fontWeight: 600 },

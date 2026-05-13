@@ -362,6 +362,10 @@ input:focus, textarea:focus, select:focus {
     grid-template-columns: 1fr 1fr !important;
   }
 
+  .cost-grid {
+    grid-template-columns: 1fr !important;
+  }
+
   .dash-card-num, .agg-num {
     font-size: 38px !important;
   }
