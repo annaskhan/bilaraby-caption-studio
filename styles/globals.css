@@ -5,17 +5,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Chivo:wght@300;400;500;600;700;800;900&family=El+Messiri:wght@400;500;600;700&display=swap');
 
 :root, [data-theme="light"] {
-  --bilaraby-dark: #1B180F;
-  --bilaraby-dark-2: #2A2620;
+  --bilaraby-dark: #0E1411;
+  --bilaraby-dark-2: #1A211C;
   --bilaraby-cream: #F9F7EA;
   --bilaraby-cream-2: #F2EFE0;
   --bilaraby-cream-3: #E8E4D0;
-  /* Primary accent — BilAraby teal-green (matches website) */
-  --bilaraby-gold: #0B6A62;
-  --bilaraby-gold-soft: #0F857B;
-  --bilaraby-gold-dim: rgba(11, 106, 98, 0.15);
+  /* Primary accent — BilAraby forest green (less turquoise) */
+  --bilaraby-gold: #0F7A4D;
+  --bilaraby-gold-soft: #149559;
+  --bilaraby-gold-dim: rgba(15, 122, 77, 0.15);
   --bilaraby-purple: #734663;
-  --bilaraby-teal: #0B6A62;
+  --bilaraby-teal: #0F7A4D;
   --bilaraby-blue: #104F84;
   --bilaraby-red: #D64E3E;
 
@@ -23,8 +23,8 @@
   --bg-page: #F9F7EA;
   --bg-card: #FFFFFF;
   --bg-soft: #F2EFE0;
-  --bg-header: #1B180F;
-  --bg-hero: #1B180F;
+  --bg-header: #080B0A;
+  --bg-hero: #080B0A;
 
   /* Text */
   --text-primary: #1B180F;
@@ -36,20 +36,20 @@
   /* Borders */
   --border-subtle: rgba(27, 24, 15, 0.1);
   --border-strong: rgba(27, 24, 15, 0.18);
-  --border-gold: rgba(11, 106, 98, 0.4);
+  --border-gold: rgba(15, 122, 77, 0.4);
 
   /* Shadows */
-  --shadow-card: 0 1px 3px rgba(27, 24, 15, 0.04);
-  --shadow-elevated: 0 8px 24px rgba(27, 24, 15, 0.08);
+  --shadow-card: 0 1px 3px rgba(14, 20, 17, 0.04);
+  --shadow-elevated: 0 8px 24px rgba(14, 20, 17, 0.08);
 }
 
 [data-theme="dark"] {
-  /* Surfaces — deep warm dark, never pure black */
-  --bg-page: #100E08;
-  --bg-card: #1E1B12;
-  --bg-soft: #16140C;
-  --bg-header: #0A0805;
-  --bg-hero: #0A0805;
+  /* Surfaces — deep cool near-black, no brown */
+  --bg-page: #0A0E0C;
+  --bg-card: #131816;
+  --bg-soft: #0F1411;
+  --bg-header: #050807;
+  --bg-hero: #050807;
 
   /* Text — cream stays our content color */
   --text-primary: #F2EFE0;
@@ -61,10 +61,10 @@
   /* Borders */
   --border-subtle: rgba(242, 239, 224, 0.08);
   --border-strong: rgba(242, 239, 224, 0.16);
-  --border-gold: rgba(11, 106, 98, 0.5);
+  --border-gold: rgba(15, 122, 77, 0.5);
 
   /* Cream and gold accents shift slightly to be readable on dark */
-  --bilaraby-cream-2: #1E1B12;
+  --bilaraby-cream-2: #131816;
 
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.5);
@@ -99,7 +99,7 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
 
 .translate-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(11, 106, 98, 0.3) !important;
+  box-shadow: 0 8px 28px rgba(15, 122, 77, 0.3) !important;
 }
 
 .result-card:hover {
@@ -147,10 +147,10 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
 /* Pipeline breathing */
 @keyframes node-breathe {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(11, 106, 98, 0.45), 0 0 18px rgba(11, 106, 98, 0.35);
+    box-shadow: 0 0 0 0 rgba(15, 122, 77, 0.45), 0 0 18px rgba(15, 122, 77, 0.35);
   }
   50% {
-    box-shadow: 0 0 0 12px rgba(11, 106, 98, 0), 0 0 32px rgba(11, 106, 98, 0.5);
+    box-shadow: 0 0 0 12px rgba(15, 122, 77, 0), 0 0 32px rgba(15, 122, 77, 0.5);
   }
 }
 
@@ -169,8 +169,8 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
 }
 
 @keyframes node-shimmer {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(11, 106, 98, 0); }
-  50% { box-shadow: 0 0 0 4px rgba(11, 106, 98, 0.08); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(15, 122, 77, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(15, 122, 77, 0.08); }
 }
 
 .pipeline-node-done {
@@ -195,7 +195,7 @@ a:hover { border-bottom-color: var(--bilaraby-gold); }
 input:focus, textarea:focus, select:focus {
   outline: none;
   border-color: var(--bilaraby-gold) !important;
-  box-shadow: 0 0 0 3px rgba(11, 106, 98, 0.1);
+  box-shadow: 0 0 0 3px rgba(15, 122, 77, 0.1);
 }
 
 /* Arabic text utility */
@@ -272,7 +272,7 @@ input:focus, textarea:focus, select:focus {
 .login-btn:hover {
   background: var(--bilaraby-gold-soft) !important;
   transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(11, 106, 98, 0.3);
+  box-shadow: 0 8px 24px rgba(15, 122, 77, 0.3);
 }
 
 /* Selection */
